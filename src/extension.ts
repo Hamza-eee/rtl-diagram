@@ -103,14 +103,17 @@ export async function activate(ctx: vscode.ExtensionContext) {
   };
   const w1 = vscode.workspace.createFileSystemWatcher('**/*.{sv,svh,v,vh}');
   const w2 = vscode.workspace.createFileSystemWatcher('**/{Bender.yml,*.f}');
-  const w3 = vscode.workspace.createFileSystemWatcher('**/run.json');
+  // Runs: a flow may write run.json before findings.sarif, or rewrite them in place, so follow both
+  // files and every kind of change, debounced so a run being written is read once it is complete.
+  const w3 = vscode.workspace.createFileSystemWatcher('**/{run.json,findings.sarif}');
+  let tr: NodeJS.Timeout | undefined;
+  const rescanRuns = () => { if (tr) clearTimeout(tr); tr = setTimeout(() => void store.rescanRuns(), 400); };
   const w4 = vscode.workspace.createFileSystemWatcher(`**/${store.notesFolderName()}/*.json`);
   let tn: NodeJS.Timeout | undefined;
   const reloadNotes = () => { if (tn) clearTimeout(tn); tn = setTimeout(() => store.reloadNotes(), 200); };
   w4.onDidChange(reloadNotes); w4.onDidCreate(reloadNotes); w4.onDidDelete(reloadNotes);
   for (const w of [w1, w2]) { w.onDidChange(schedule); w.onDidCreate(schedule); w.onDidDelete(schedule); }
-  w3.onDidCreate(() => void store.rescanRuns());
-  w3.onDidDelete(() => void store.rescanRuns());
+  w3.onDidCreate(rescanRuns); w3.onDidChange(rescanRuns); w3.onDidDelete(rescanRuns);
   ctx.subscriptions.push(w1, w2, w3, w4, vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('rtlDiagram')) { schedule(); void store.rescanRuns(); }
   }));
