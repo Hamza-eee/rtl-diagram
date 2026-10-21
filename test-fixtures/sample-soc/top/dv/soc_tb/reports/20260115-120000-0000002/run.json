@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "20260115-120000-0000002",
+  "started_at": "2026-01-15T12:00:00+00:00",
+  "finished_at": "2026-01-15T12:02:58+00:00",
+  "git_commit": "0000000000000000000000000000000000000002",
+  "dirty": false,
+  "package": "top",
+  "testbench": "soc_tb",
+  "dut_top": "soc_top",
+  "dut_instance": "tb.dut",
+  "design_doc": "docs/soc_top.md",
+  "verification_plan": "top/dv/verification-plan.md",
+  "simulator": {
+    "name": "verilator",
+    "version": "5.036"
+  },
+  "seeds": [
+    3,
+    7
+  ],
+  "tests": [
+    {
+      "name": "test_irq_timer0",
+      "seed": 7,
+      "status": "pass",
+      "duration_s": 1.8,
+      "sim_time_ns": 8000,
+      "transactions": 24
+    },
+    {
+      "name": "test_oneshot",
+      "seed": 7,
+      "status": "pass",
+      "duration_s": 1.2,
+      "sim_time_ns": 6000,
+      "transactions": 18
+    },
+    {
+      "name": "test_event_counter",
+      "seed": 3,
+      "status": "pass",
+      "duration_s": 0.6,
+      "sim_time_ns": 2000,
+      "transactions": 6
+    },
+    {
+      "name": "test_apb_ready",
+      "seed": 3,
+      "status": "pass",
+      "duration_s": 0.4,
+      "sim_time_ns": 1000,
+      "transactions": 12
+    }
+  ],
+  "totals": {
+    "tests": 4,
+    "passed": 4,
+    "failed": 0,
+    "findings": {
+      "error": 0,
+      "warning": 0,
+      "note": 0
+    }
+  },
+  "status": "pass",
+  "files": {
+    "findings": "top/dv/soc_tb/reports/20260115-120000-0000002/findings.sarif",
+    "summary": "top/dv/soc_tb/reports/20260115-120000-0000002/summary.md",
+    "junit": [
+      "top/dv/soc_tb/reports/20260115-120000-0000002/results/results_seed3.xml",
+      "top/dv/soc_tb/reports/20260115-120000-0000002/results/results_seed7.xml"
+    ],
+    "waves": []
+  }
+}

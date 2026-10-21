@@ -1,0 +1,7 @@
+package:
+  name: common
+
+sources:
+  - rtl/soc_pkg.sv
+  - rtl/sync_2ff.sv
+  - rtl/fifo.sv

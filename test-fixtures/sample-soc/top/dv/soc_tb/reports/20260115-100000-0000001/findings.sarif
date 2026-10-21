@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "example-verif",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "SOC-IRQ-001",
+              "shortDescription": {
+                "text": "irq_o follows any enabled, expired timer"
+              },
+              "fullDescription": {
+                "text": "irq_o must be high in the cycle after a timer expires while its IRQ_EN bit is set."
+              },
+              "properties": {
+                "spec_ref": null,
+                "channel": "global",
+                "design_ref": "docs/soc_top.md#interrupt"
+              }
+            },
+            {
+              "id": "SOC-TMR-002",
+              "shortDescription": {
+                "text": "A one-shot timer expires exactly once"
+              },
+              "fullDescription": {
+                "text": "In MODE_ONESHOT, expired pulses once when the count reaches zero and never again until reloaded."
+              },
+              "properties": {
+                "spec_ref": null,
+                "channel": "global",
+                "design_ref": "docs/soc_top.md#timers"
+              }
+            },
+            {
+              "id": "SOC-EVT-003",
+              "shortDescription": {
+                "text": "Event counter output present"
+              },
+              "fullDescription": {
+                "text": "The design document lists evt_count_o as the number of synchronised rising edges on ext_evt_i."
+              },
+              "properties": {
+                "spec_ref": null,
+                "channel": "global",
+                "design_ref": "docs/soc_top.md#events"
+              }
+            },
+            {
+              "id": "SOC-APB-004",
+              "shortDescription": {
+                "text": "PREADY is always high"
+              },
+              "fullDescription": {
+                "text": "The register block has no wait states: PREADY is 1 in every access phase."
+              },
+              "properties": {
+                "spec_ref": {
+                  "doc": "AMBA APB",
+                  "section": "3.1",
+                  "page": "3-2"
+                },
+                "channel": "global"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "SOC-IRQ-001",
+          "level": "error",
+          "message": {
+            "text": "Expected irq_o=1 the cycle after timer 0 expired with IRQ_EN[0]=1; irq_o stayed 0 for 8 cycles."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "tb.dut",
+                  "name": "dut",
+                  "kind": "module"
+                },
+                {
+                  "fullyQualifiedName": "tb.dut.irq_o",
+                  "name": "irq_o",
+                  "kind": "variable",
+                  "properties": {
+                    "role": "primary"
+                  }
+                },
+                {
+                  "fullyQualifiedName": "tb.dut.paddr_i",
+                  "name": "paddr_i",
+                  "kind": "variable",
+                  "properties": {
+                    "role": "context"
+                  }
+                },
+                {
+                  "fullyQualifiedName": "tb.dut.pwdata_i",
+                  "name": "pwdata_i",
+                  "kind": "variable",
+                  "properties": {
+                    "role": "context"
+                  }
+                }
+              ]
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "top/dv/soc_tb/checkers/irq_checker.py"
+                },
+                "region": {
+                  "startLine": 64
+                }
+              },
+              "message": {
+                "text": "Detected by interrupt checker"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "verifFinding/v1": "41b76273f462163b"
+          },
+          "properties": {
+            "test": "test_irq_timer0",
+            "seed": 7,
+            "sim_time_ns": 3410,
+            "cycle": 341,
+            "channel": "global",
+            "signals": {
+              "irq_o": "0",
+              "paddr_i": "0x04",
+              "pwdata_i": "0x00000001"
+            },
+            "occurrences": 1,
+            "reproduce": "make sim SEED=7 TEST=test_irq_timer0",
+            "classification": "dut_bug",
+            "triage_status": "open",
+            "waveform": {
+              "file": "top/dv/soc_tb/reports/20260115-100000-0000001/waves/test_irq_timer0_seed7.fst",
+              "start_ns": 3200,
+              "end_ns": 3600
+            }
+          }
+        },
+        {
+          "ruleId": "SOC-TMR-002",
+          "level": "warning",
+          "message": {
+            "text": "Timer 1 in MODE_ONESHOT pulsed expired twice, 3 cycles apart; may be intended if LOAD was rewritten."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "tb.dut",
+                  "name": "dut",
+                  "kind": "module"
+                },
+                {
+                  "fullyQualifiedName": "tb.dut.u_timer.expired",
+                  "name": "expired",
+                  "kind": "variable",
+                  "properties": {
+                    "role": "primary"
+                  }
+                },
+                {
+                  "fullyQualifiedName": "tb.dut.u_timer.div",
+                  "name": "div",
+                  "kind": "variable",
+                  "properties": {
+                    "role": "context"
+                  }
+                }
+              ]
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "top/dv/soc_tb/checkers/timer_checker.py"
+                },
+                "region": {
+                  "startLine": 31
+                }
+              },
+              "message": {
+                "text": "Detected by timer scoreboard"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "verifFinding/v1": "2d7369588ab7839d"
+          },
+          "properties": {
+            "test": "test_oneshot",
+            "seed": 7,
+            "sim_time_ns": 2950,
+            "cycle": 295,
+            "channel": "global",
+            "signals": {
+              "expired": "0x2",
+              "div": "0x03"
+            },
+            "occurrences": 2,
+            "reproduce": "make sim SEED=7 TEST=test_oneshot",
+            "classification": "spec_question",
+            "triage_status": "open"
+          }
+        },
+        {
+          "ruleId": "SOC-EVT-003",
+          "level": "note",
+          "message": {
+            "text": "evt_count_o could not be bound: the design document names it but the DUT has no such port."
+          },
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "fullyQualifiedName": "tb.dut",
+                  "name": "dut",
+                  "kind": "module"
+                },
+                {
+                  "fullyQualifiedName": "tb.dut.evt_count_o",
+                  "name": "evt_count_o",
+                  "kind": "variable",
+                  "properties": {
+                    "role": "primary"
+                  }
+                }
+              ]
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 1,
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "top/dv/soc_tb/env.py"
+                },
+                "region": {
+                  "startLine": 12
+                }
+              },
+              "message": {
+                "text": "Detected while binding DUT signals"
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "verifFinding/v1": "cfcd84bfea8f9c61"
+          },
+          "properties": {
+            "test": "test_event_counter",
+            "seed": 3,
+            "sim_time_ns": 0,
+            "cycle": 0,
+            "channel": "global",
+            "signals": {
+              "evt_count_o": "z"
+            },
+            "occurrences": 1,
+            "reproduce": "make sim SEED=3 TEST=test_event_counter",
+            "classification": "unknown",
+            "triage_status": "open"
+          }
+        }
+      ]
+    }
+  ]
+}

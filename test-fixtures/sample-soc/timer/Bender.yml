@@ -1,0 +1,10 @@
+package:
+  name: timer
+
+dependencies:
+  common: { path: "../common" }
+
+sources:
+  - rtl/prescaler.sv
+  - rtl/timer_core.sv
+  - rtl/timer.sv

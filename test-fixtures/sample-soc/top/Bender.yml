@@ -1,0 +1,9 @@
+package:
+  name: top
+
+dependencies:
+  common: { path: "../common" }
+  timer:  { path: "../timer" }
+
+sources:
+  - rtl/*.sv

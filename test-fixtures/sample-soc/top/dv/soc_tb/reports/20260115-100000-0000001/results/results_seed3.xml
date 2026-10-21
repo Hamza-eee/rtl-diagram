@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites><testsuite name="soc_tb" tests="2">
+  <testcase name="test_event_counter" time="0.6"></testcase>
+  <testcase name="test_apb_ready" time="0.4"></testcase>
+</testsuite></testsuites>

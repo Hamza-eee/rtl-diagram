@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "example-verif",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "SOC-IRQ-001",
+              "shortDescription": {
+                "text": "irq_o follows any enabled, expired timer"
+              },
+              "fullDescription": {
+                "text": "irq_o must be high in the cycle after a timer expires while its IRQ_EN bit is set."
+              },
+              "properties": {
+                "spec_ref": null,
+                "channel": "global",
+                "design_ref": "docs/soc_top.md#interrupt"
+              }
+            },
+            {
+              "id": "SOC-TMR-002",
+              "shortDescription": {
+                "text": "A one-shot timer expires exactly once"
+              },
+              "fullDescription": {
+                "text": "In MODE_ONESHOT, expired pulses once when the count reaches zero and never again until reloaded."
+              },
+              "properties": {
+                "spec_ref": null,
+                "channel": "global",
+                "design_ref": "docs/soc_top.md#timers"
+              }
+            },
+            {
+              "id": "SOC-EVT-003",
+              "shortDescription": {
+                "text": "Event counter output present"
+              },
+              "fullDescription": {
+                "text": "The design document lists evt_count_o as the number of synchronised rising edges on ext_evt_i."
+              },
+              "properties": {
+                "spec_ref": null,
+                "channel": "global",
+                "design_ref": "docs/soc_top.md#events"
+              }
+            },
+            {
+              "id": "SOC-APB-004",
+              "shortDescription": {
+                "text": "PREADY is always high"
+              },
+              "fullDescription": {
+                "text": "The register block has no wait states: PREADY is 1 in every access phase."
+              },
+              "properties": {
+                "spec_ref": {
+                  "doc": "AMBA APB",
+                  "section": "3.1",
+                  "page": "3-2"
+                },
+                "channel": "global"
+              }
+            }
+          ]
+        }
+      },
+      "results": []
+    }
+  ]
+}
