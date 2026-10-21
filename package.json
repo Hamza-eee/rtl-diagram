@@ -1,7 +1,7 @@
 {
   "name": "rtl-diagram",
   "displayName": "RTL Diagram",
-  "description": "Block diagrams of SystemVerilog RTL, with verification findings (SARIF) marked on the ports they name.",
+  "description": "Block diagrams of SystemVerilog RTL with verification findings and team notes on the ports they name.",
   "version": "0.1.0",
   "publisher": "rtl-diagram",
   "license": "UNLICENSED",
@@ -17,6 +17,7 @@
   "activationEvents": [
     "workspaceContains:**/Bender.yml",
     "workspaceContains:**/*.sv",
+    "workspaceContains:**/*.v",
     "workspaceContains:**/reports/*/run.json"
   ],
   "contributes": {
@@ -290,7 +291,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node esbuild.mjs && mocha 'dist/test/unit/**/*.test.js'",
     "test:integration": "node esbuild.mjs && node dist/test/runIntegration.js",
-    "package": "node esbuild.mjs && vsce package --no-dependencies"
+    "package": "node esbuild.mjs && vsce package --no-dependencies",
+    "package:local": "node esbuild.mjs && vsce package --no-dependencies --allow-missing-repository --skip-license --baseContentUrl https://example.invalid"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -303,5 +305,17 @@
     "mocha": "^12.0.3",
     "typescript": "^7.0.2",
     "yaml": "^2.9.1"
-  }
+  },
+  "keywords": [
+    "systemverilog",
+    "verilog",
+    "rtl",
+    "block diagram",
+    "schematic",
+    "verification",
+    "sarif",
+    "bender",
+    "fpga",
+    "asic"
+  ]
 }

@@ -34,5 +34,4 @@ Planned work, roughly in priority order within each section. Nothing here is bui
 - Security: refuse SARIF/run paths that resolve outside the repository root and decode SARIF URIs properly; escape untrusted text in tree tooltips; restrict `rtlDiagram.veriblePath` in untrusted workspaces; generate the CSP nonce with `crypto` and drop `'unsafe-inline'` styles.
 - Correctness: follow symlinked directories in globs (with a loop guard); `-f` filelist semantics and flags that take an argument; replace the repository-root fallback guess with the containing workspace folder; catch errors in webview message handling; ignore a finding detail that arrives after the user picked another finding.
 - Maintainability: shared message/marker types between host and webview; split `src/webview/main.ts`; tests for the panel and webview; run the integration suite in CI.
-- Docs: the README should say that names are used for display choices (net labels, pin colours) but never for connectivity; add `**/*.v` to activation events.
-- Before publishing: licence, `repository` field, publisher ID, CHANGELOG.
+- Before publishing: choose a licence (add `LICENSE` and the `license` field), set `repository` and `bugs` in package.json (this also makes README images work on the Marketplace), a real publisher ID, an extension icon (`icon`, 128×128 PNG), remove `"private": true`.
