@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Store } from './store';
-import { buildView } from './graph';
+import { buildView, DEFAULT_VIEW_OPTIONS } from './graph';
 import { moduleAtPath } from './elab';
 import { SrcLoc } from './model';
 import { primaryOf, repoPath } from './findings/run';
@@ -108,7 +108,11 @@ export class DiagramPanel implements vscode.Disposable {
     }
     let m = moduleAtPath(d, this.top, this.path);
     if (!m) { this.path = []; m = d.modules[this.top]; }
-    const graph = await buildView(d, m);
+    const c = this.store.cfg();
+    const graph = await buildView(d, m, {
+      labelFanout: c.get('netLabels.minLoads', DEFAULT_VIEW_OPTIONS.labelFanout),
+      labelPattern: c.get('netLabels.pattern', DEFAULT_VIEW_OPTIONS.labelPattern),
+    });
     if (seq !== this.renderSeq) return;   // a newer render superseded this one
     const crumbs = [{ label: this.top, sub: '', path: [] as string[] }];
     let cur: typeof m | undefined = d.modules[this.top];

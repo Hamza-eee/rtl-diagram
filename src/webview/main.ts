@@ -278,13 +278,18 @@ function drawEdge(e: VEdge, mk: Markers) {
   const flagged = mk.nets[e.net]?.find(m => m.role === 'primary') ?? mk.nets[e.net]?.[0];
   const g = s('g', { class: `edge ${tier(e.width)}${flagged ? ` flag-${flagged.level} flag-${flagged.role}` : ''}`, 'data-net': e.net, 'data-id': e.id });
   g.append(s('path', { d, class: 'hit' }), s('path', { d, class: 'wire' }));
-  // Bus notation: slash + bit count on the first horizontal segment.
+  // Bus notation: slash + bit count on the longest horizontal segment.
   if (e.width && e.width > 1 && e.points.length >= 2) {
-    const [a, b] = e.points;
-    const len = Math.abs(b[0] - a[0]);
-    if (len > 26 && Math.abs(b[1] - a[1]) < 0.5) {
+    let best = -1, len = 0;
+    for (let i = 0; i + 1 < e.points.length; i++) {
+      const [a, b] = [e.points[i], e.points[i + 1]];
+      const l = Math.abs(b[0] - a[0]);
+      if (Math.abs(b[1] - a[1]) < 0.5 && l > len) { len = l; best = i; }
+    }
+    if (best >= 0 && len > 30) {
+      const [a, b] = [e.points[best], e.points[best + 1]];
       const dir = Math.sign(b[0] - a[0]);
-      const x = a[0] + dir * Math.min(22, len / 2), y = a[1];
+      const x = a[0] + dir * Math.min(24, len / 2), y = a[1];
       g.append(s('path', { d: `M${x - 4} ${y + 5}L${x + 4} ${y - 5}`, class: 'bus-slash' }), text(x + 5, y - 6, String(e.width), 'bus-w'));
     }
   }
@@ -343,6 +348,13 @@ function drawNode(n: VNode, mk: Markers) {
     g.append(s('polygon', { points: pts, class: 'term', ...pinColorAttr(n.label) }));
     g.append(text(n.kind === 'in' ? x + 8 : x + 14, y + hh / 2 + 4, n.label, 'term-label'));
     if (p) g.setAttribute('data-pin', p.id);
+    if (p?.netLabels?.length) {
+      // The terminal already names the net: a short stub with an open end marks "connects by label".
+      const o = p.side === 'E' ? 1 : -1;
+      const lg = s('g', { class: 'netlabel', 'data-net': p.netLabels[0] });
+      lg.append(s('line', { x1: p.x, y1: p.y, x2: p.x + o * 12, y2: p.y, class: 'nl-lead' }), s('circle', { cx: p.x + o * 15, cy: p.y, r: 3, class: 'nl-box' }));
+      g.append(lg);
+    }
   }
   const m = mk.nodes[n.id];
   if (m) {
@@ -384,13 +396,28 @@ function drawPin(g: SVGGElement, n: VNode, p: VPin) {
   pg.append(s('line', { x1: p.x, y1: p.y, x2: p.x + out * 9, y2: p.y, class: 'stub' }));
   pg.append(s('rect', { x: p.side === 'E' ? p.x - 70 : p.x, y: p.y - 8, width: 70, height: 16, class: 'pin-hit' }));
   pg.append(text(p.x - out * 7, p.y + 4, p.name, 'pin-label', p.side === 'E' ? 'end' : 'start'));
-  if (p.open) {
+  if (p.netLabels?.length) {
+    drawNetLabel(pg, p.x + out * 9, p.y, out, p.netLabels[0], p.netLabels.length - 1);
+  } else if (p.open) {
     const cx = p.x + out * 13;
     pg.append(s('path', { d: `M${cx - 3} ${p.y - 3}l6 6M${cx + 3} ${p.y - 3}l-6 6`, class: 'nc' }));
   } else if (p.tie && p.expr) {
     pg.append(text(p.x + out * 13, p.y - 4, p.expr, 'tie-label', p.side === 'E' ? 'start' : 'end'));
   }
   g.append(pg);
+}
+
+/** Named stub for a net drawn as labels (clock, reset, high fan-out). */
+function drawNetLabel(g: SVGGElement, x: number, y: number, out: number, net: string, more: number) {
+  const label = more > 0 ? `${net} +${more}` : net;
+  const w = label.length * 6.2 + 12;
+  const x0 = out > 0 ? x : x - w;
+  const lg = s('g', { class: 'netlabel', 'data-net': net });
+  lg.append(s('line', { x1: x, y1: y, x2: out > 0 ? x0 + 2 : x0 + w - 2, y2: y, class: 'nl-lead' }));
+  lg.append(s('rect', { x: x0, y: y - 7, width: w, height: 14, rx: 7, class: 'nl-box' }));
+  lg.append(text(x0 + w / 2, y + 3.5, label, 'nl-t', 'middle'));
+  lg.addEventListener('click', ev => { ev.stopPropagation(); select({ kind: 'net', id: net }); });
+  g.append(lg);
 }
 
 function drawMarkers(msg: ViewMsg) {
@@ -406,8 +433,10 @@ function drawMarkers(msg: ViewMsg) {
     g.append(s('circle', { cx: pin.x, cy: pin.y, r: m.role === 'primary' ? 7 : 6, class: 'ring' }));
     if (prim) {
       // Probe: a leader up-and-out from the pin to a tag with the rule id.
-      const out = pin.side === 'E' ? 1 : -1;
-      const tx = pin.x + out * 26, ty = pin.y - 26;
+      // Lean away from the diagram: outward from an instance pin, toward the body of a port terminal.
+      const term = pp.node.kind !== 'inst' && pp.node.kind !== 'logic';
+      const out = (pin.side === 'E' ? 1 : -1) * (term ? -1 : 1);
+      const tx = pin.x + out * 22, ty = term ? pp.node.y - 16 : pin.y - 26;
       const row = msg.findings.find(f => f.index === prim.f);
       const more = list.filter(x => x.role === 'primary').length - 1;
       const label = `${row?.ruleId ?? 'finding'}${more > 0 ? ` +${more}` : ''}`;
@@ -445,7 +474,10 @@ function select(sel: typeof selection) {
   svg.classList.toggle('has-sel', !!sel);
   for (const el of svg.querySelectorAll('.sel, .lit')) el.classList.remove('sel', 'lit');
   if (!sel || !view) { renderDrawer(); return; }
-  const lit = (net: string) => { for (const id of view!.graph.nets[net] ?? []) edgeEls.get(id)?.classList.add('lit'); svg.querySelectorAll(`.junction[data-net="${CSS.escape(net)}"]`).forEach(j => j.classList.add('lit')); };
+  const lit = (net: string) => {
+    svg.querySelectorAll(`.netlabel[data-net="${CSS.escape(net)}"]`).forEach(l => l.classList.add('lit'));
+    for (const id of view!.graph.nets[net] ?? []) edgeEls.get(id)?.classList.add('lit'); svg.querySelectorAll(`.junction[data-net="${CSS.escape(net)}"]`).forEach(j => j.classList.add('lit'));
+  };
   if (sel.kind === 'node') {
     const el = gNodes.querySelector(`[data-id="${CSS.escape(sel.id)}"]`);
     el?.classList.add('sel');
@@ -456,6 +488,7 @@ function select(sel: typeof selection) {
     svg.querySelector(`.pin[data-pin="${CSS.escape(sel.id)}"]`)?.classList.add('sel');
     gNodes.querySelector(`[data-id="${CSS.escape(pp?.node.id ?? '')}"]`)?.classList.add('lit');
     const nets = new Set((pinEdges.get(sel.id) ?? []).map(id => view!.graph.edges.find(e => e.id === id)!.net));
+    for (const n of pp?.pin.netLabels ?? []) nets.add(n);
     nets.forEach(lit);
   } else {
     lit(sel.id);
@@ -525,7 +558,7 @@ function nodeTip(n: VNode) {
 function netTip(net: string) {
   const ids = view?.graph.nets[net] ?? [];
   const e = view?.graph.edges.find(x => x.id === ids[0]);
-  return h('div', {}, h('div', { class: 'tip-title mono' }, net), e?.width ? kv('width', `${e.width} bit${e.width > 1 ? 's' : ''}`) : null, kv('connections', String(ids.length + 1)));
+  return h('div', {}, h('div', { class: 'tip-title mono' }, net), e?.width ? kv('width', `${e.width} bit${e.width > 1 ? 's' : ''}`) : null, kv('connections', String(view?.graph.labels?.[net]?.length ?? ids.length + 1)));
 }
 function markerTip(list: Marker[], pin: string) {
   const rows = list.map(m => {
@@ -762,9 +795,10 @@ function selectionCard() {
   const ids = view.graph.nets[net] ?? [];
   const ends = new Set<string>();
   for (const id of ids) { const e = view.graph.edges.find(x => x.id === id)!; ends.add(e.from); ends.add(e.to); }
+  for (const pid of view.graph.labels?.[net] ?? []) ends.add(pid);
   return h('div', { class: 'pad' },
     h('h2', { class: 'card-title mono' }, net),
-    h('p', { class: 'muted' }, 'Net in this module, connecting:'),
+    h('p', { class: 'muted' }, view.graph.labels?.[net] ? 'Net in this module, drawn as labels (see the rtlDiagram.netLabels settings). Connects:' : 'Net in this module, connecting:'),
     h('ul', { class: 'plain' }, ...[...ends].map(pid => {
       const pp = pinById.get(pid)!;
       const label = pp.node.kind === 'inst' ? `${pp.node.label}.${pp.pin.name}` : pp.node.kind === 'logic' ? `logic (${pp.pin.dir === 'output' ? 'drives' : 'reads'})` : `port ${pp.pin.name}`;

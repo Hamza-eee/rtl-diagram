@@ -44,6 +44,7 @@ Testbench folders (`tb/`, `dv/`, `test/`, `sim/`) are excluded by default throug
 | Stacked outline | the instance is inside a `generate` construct (the header is shown above it) |
 | Wire thickness | 1 bit, 2–8 bits, more than 8 bits; buses carry a slash with their width |
 | `×` at a pin | the port is left open |
+| Rounded tag at a pin | a clock, reset or high fan-out net drawn as a named label instead of a wire (`rtlDiagram.netLabels.*`) |
 
 A net is drawn only if the module declares it as a port, net or variable. Parameters, genvars and enum constants are never drawn as wires.
 
@@ -57,6 +58,8 @@ A net is drawn only if the module declares it as a port, net or variable. Parame
 | `rtlDiagram.filelists` | `[]` | `.f` files to read |
 | `rtlDiagram.include` / `exclude` | see above | globs |
 | `rtlDiagram.runsGlob` | `**/reports/*/run.json` | where runs are found |
+| `rtlDiagram.netLabels.pattern` | clocks and resets | regex for nets drawn as labels instead of wires |
+| `rtlDiagram.netLabels.minLoads` | `6` | nets with at least this many loads are drawn as labels |
 | `rtlDiagram.theme` | `auto` | `auto` follows VS Code; the toolbar button cycles Auto / Light / Dark |
 | `rtlDiagram.colors.*` | theme | block, wire, error, warning, note colours, and `portGroups` (prefix → colour) |
 

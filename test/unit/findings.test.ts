@@ -120,6 +120,13 @@ describe('buildView', () => {
     const fifo = g.nodes.find(n => n.id === 'inst:u_evt_fifo')!;
     assert.ok(fifo.pins.find(p => p.name === 'empty')!.open);
     assert.ok(fifo.pins.find(p => p.name === 'pop')!.tie);
+    // clocks and resets are drawn as labels, not wires
+    assert.strictEqual(g.edges.filter(e => e.net === 'clk_i' || e.net === 'rst_ni').length, 0);
+    assert.strictEqual(g.labels.clk_i.length, 6);   // the port, u_sync, u_regs, u_timer, u_evt_fifo and the always_ff
+    assert.deepStrictEqual(g.nodes.find(n => n.id === 'inst:u_regs')!.pins.find(p => p.name === 'pclk')!.netLabels, ['clk_i']);
+    // with labels disabled the same nets become wires
+    const wired = await buildView(d, d.modules.soc_top, { labelFanout: 0, labelPattern: '' });
+    assert.strictEqual(wired.edges.filter(e => e.net === 'clk_i').length, 5);
     const g2 = await buildView(d, d.modules.soc_top);
     assert.deepStrictEqual(g2.nodes.map(n => [n.id, n.x, n.y]), g.nodes.map(n => [n.id, n.x, n.y]));
   });

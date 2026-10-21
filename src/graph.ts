@@ -21,8 +21,21 @@ export interface VPin {
   expr?: string;                  // actual expression for instance pins
   open?: boolean;                 // left unconnected `.p()`
   tie?: boolean;                  // connected to a constant only
+  netLabels?: string[];           // nets drawn as labels at this pin instead of wires
   loc?: SrcLoc;
 }
+
+export interface ViewOptions {
+  /** Nets with at least this many loads are drawn as labels (0 disables). */
+  labelFanout: number;
+  /** Nets whose name matches are drawn as labels (e.g. clocks and resets). Empty disables. */
+  labelPattern: string;
+}
+
+export const DEFAULT_VIEW_OPTIONS: ViewOptions = {
+  labelFanout: 6,
+  labelPattern: '(^|_)(h|a)?(clk|clock|rst|reset)(_?n|_?i|_?ni)?$',
+};
 
 export interface VNode {
   id: string;
@@ -55,6 +68,7 @@ export interface ViewGraph {
   nodes: VNode[];
   edges: VEdge[];
   nets: Record<string, string[]>; // net -> edge ids (for highlight)
+  labels: Record<string, string[]>; // net -> pin ids, for nets drawn as labels
   stats: { instances: number; ports: number; nets: number };
 }
 
@@ -71,7 +85,7 @@ function pinDir(d: Port['dir']): PinDir {
 
 interface Endpoint { pin: string; role: 'src' | 'sink' | 'bi'; width?: number }
 
-export async function buildView(d: Design, m: Module): Promise<ViewGraph> {
+export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAULT_VIEW_OPTIONS): Promise<ViewGraph> {
   const nodes: VNode[] = [];
   const nets = new Map<string, Endpoint[]>();
   const addEp = (net: string, ep: Endpoint) => {
@@ -147,8 +161,20 @@ export async function buildView(d: Design, m: Module): Promise<ViewGraph> {
   // Nets → edges (driver → each load).
   const edges: VEdge[] = [];
   const netEdges: Record<string, string[]> = {};
+  const labels: Record<string, string[]> = {};
+  let rx: RegExp | null = null;
+  try { rx = opts.labelPattern ? new RegExp(opts.labelPattern, 'i') : null; } catch { rx = null; }
+  const pinOf = new Map<string, VPin>();
+  for (const n of nodes) for (const p of n.pins) pinOf.set(p.id, p);
   for (const [net, eps] of [...nets.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     if (eps.length < 2) continue;
+    const loads = eps.filter(e => e.role !== 'src').length;
+    if ((rx && rx.test(net)) || (opts.labelFanout > 0 && loads >= opts.labelFanout)) {
+      // Drawn as a named stub at every pin: same connectivity, far less clutter.
+      labels[net] = eps.map(e => e.pin);
+      for (const e of eps) { const p = pinOf.get(e.pin)!; (p.netLabels ??= []).push(net); }
+      continue;
+    }
     let srcs = eps.filter(e => e.role === 'src');
     let sinks = eps.filter(e => e.role !== 'src');
     if (!srcs.length) { srcs = [eps[0]]; sinks = eps.slice(1); }
@@ -173,8 +199,8 @@ export async function buildView(d: Design, m: Module): Promise<ViewGraph> {
 
   const g = await layout(nodes, edges);
   return {
-    module: m.name, file: m.file, pkg: m.pkg, w: g.w, h: g.h, nodes, edges, nets: netEdges,
-    stats: { instances: m.instances.length, ports: m.ports.length, nets: Object.keys(netEdges).length },
+    module: m.name, file: m.file, pkg: m.pkg, w: g.w, h: g.h, nodes, edges, nets: netEdges, labels,
+    stats: { instances: m.instances.length, ports: m.ports.length, nets: Object.keys(netEdges).length + Object.keys(labels).length },
   };
 }
 
@@ -220,6 +246,8 @@ async function layout(nodes: VNode[], edges: VEdge[]): Promise<{ w: number; h: n
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
       'elk.padding': '[top=30,left=30,bottom=30,right=30]',
       'elk.randomSeed': '1',
+      // Keep terminals whose nets are drawn as labels in the port columns instead of a separate row.
+      'elk.separateConnectedComponents': 'false',
     },
     children,
     edges: edges.map(e => ({ id: e.id, sources: [e.from], targets: [e.to] })),

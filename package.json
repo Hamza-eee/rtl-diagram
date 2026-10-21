@@ -199,6 +199,16 @@
           "default": "**/reports/*/run.json",
           "markdownDescription": "Where verification runs are discovered."
         },
+        "rtlDiagram.netLabels.pattern": {
+          "type": "string",
+          "default": "(^|_)(h|a)?(clk|clock|rst|reset)(_?n|_?i|_?ni)?$",
+          "markdownDescription": "Nets whose name matches this regular expression (case-insensitive) are drawn as named labels at each pin instead of wires. Clocks and resets by default. Empty to disable."
+        },
+        "rtlDiagram.netLabels.minLoads": {
+          "type": "number",
+          "default": 6,
+          "markdownDescription": "Nets with at least this many loads in a view are drawn as named labels instead of wires. `0` disables."
+        },
         "rtlDiagram.theme": {
           "type": "string",
           "enum": [
