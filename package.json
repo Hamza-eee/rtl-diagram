@@ -1,0 +1,268 @@
+{
+  "name": "rtl-diagram",
+  "displayName": "RTL Diagram",
+  "description": "Block diagrams of SystemVerilog RTL, with verification findings (SARIF) marked on the ports they name.",
+  "version": "0.1.0",
+  "publisher": "rtl-diagram",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Visualization",
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/Bender.yml",
+    "workspaceContains:**/*.sv",
+    "workspaceContains:**/reports/*/run.json"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rtlDiagram",
+          "title": "RTL Diagram",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "rtlDiagram": [
+        {
+          "id": "rtlDiagram.hierarchy",
+          "name": "Hierarchy"
+        },
+        {
+          "id": "rtlDiagram.runs",
+          "name": "Verification runs"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "rtlDiagram.hierarchy",
+        "contents": "No SystemVerilog modules found yet.\n[Rescan workspace](command:rtlDiagram.refresh)\nSources come from Bender.yml, a .f filelist, or the rtlDiagram.include glob."
+      },
+      {
+        "view": "rtlDiagram.runs",
+        "contents": "No verification runs found. Runs are read from reports/<run_id>/run.json.\n[Open a run folder](command:rtlDiagram.openRun)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "rtlDiagram.openDiagram",
+        "title": "Open Diagram",
+        "category": "RTL Diagram",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "rtlDiagram.refresh",
+        "title": "Rescan Sources and Runs",
+        "category": "RTL Diagram",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "rtlDiagram.openRun",
+        "title": "Open Run Folder…",
+        "category": "RTL Diagram",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "rtlDiagram.selectTop",
+        "title": "Choose Top Module…",
+        "category": "RTL Diagram"
+      },
+      {
+        "command": "rtlDiagram.showModule",
+        "title": "Show in Diagram",
+        "category": "RTL Diagram"
+      },
+      {
+        "command": "rtlDiagram.showFinding",
+        "title": "Show Finding",
+        "category": "RTL Diagram"
+      },
+      {
+        "command": "rtlDiagram.clearRun",
+        "title": "Clear Active Run",
+        "category": "RTL Diagram",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "rtlDiagram.showSources",
+        "title": "Show Source Files",
+        "category": "RTL Diagram"
+      },
+      {
+        "command": "rtlDiagram.activateRun",
+        "title": "Activate Run",
+        "category": "RTL Diagram"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "rtlDiagram.openDiagram",
+          "when": "view == rtlDiagram.hierarchy",
+          "group": "navigation"
+        },
+        {
+          "command": "rtlDiagram.refresh",
+          "when": "view == rtlDiagram.hierarchy",
+          "group": "navigation"
+        },
+        {
+          "command": "rtlDiagram.openRun",
+          "when": "view == rtlDiagram.runs",
+          "group": "navigation"
+        },
+        {
+          "command": "rtlDiagram.clearRun",
+          "when": "view == rtlDiagram.runs",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "rtlDiagram.showModule",
+          "when": "false"
+        },
+        {
+          "command": "rtlDiagram.showFinding",
+          "when": "false"
+        },
+        {
+          "command": "rtlDiagram.activateRun",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RTL Diagram",
+      "properties": {
+        "rtlDiagram.veriblePath": {
+          "type": "string",
+          "default": "verible-verilog-syntax",
+          "markdownDescription": "Path to `verible-verilog-syntax`. Used to parse SystemVerilog."
+        },
+        "rtlDiagram.sourceMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "bender",
+            "filelist",
+            "glob"
+          ],
+          "default": "auto",
+          "markdownDescription": "Where RTL files come from. `auto` uses Bender.yml if present, then a filelist, then the include glob."
+        },
+        "rtlDiagram.benderRoots": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Folders (workspace-relative) whose `Bender.yml` are roots. Empty: every Bender.yml in the workspace."
+        },
+        "rtlDiagram.filelists": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Filelists (`.f`) to read. Supports plain paths, `-f`, `+incdir+`, `-v` and `-y`."
+        },
+        "rtlDiagram.include": {
+          "type": "string",
+          "default": "**/*.{sv,v}",
+          "markdownDescription": "Glob of RTL files used when there is no Bender.yml or filelist."
+        },
+        "rtlDiagram.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/{tb,dv,test,tests,sim,.bender,node_modules,venv,.venv}/**",
+            "**/*_tb.sv",
+            "**/tb_*.sv",
+            "**/*_tb.v",
+            "**/tb_*.v"
+          ],
+          "markdownDescription": "Globs excluded from RTL discovery (testbenches by default)."
+        },
+        "rtlDiagram.runsGlob": {
+          "type": "string",
+          "default": "**/reports/*/run.json",
+          "markdownDescription": "Where verification runs are discovered."
+        },
+        "rtlDiagram.theme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "light",
+            "dark"
+          ],
+          "default": "auto",
+          "markdownDescription": "Diagram theme. `auto` follows the VS Code colour theme."
+        },
+        "rtlDiagram.colors.block": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Block fill colour (CSS). Empty: theme default."
+        },
+        "rtlDiagram.colors.wire": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Wire colour (CSS). Empty: theme default."
+        },
+        "rtlDiagram.colors.error": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Colour for `error` findings. Empty: theme default."
+        },
+        "rtlDiagram.colors.warning": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Colour for `warning` findings. Empty: theme default."
+        },
+        "rtlDiagram.colors.note": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Colour for `note` findings. Empty: theme default."
+        },
+        "rtlDiagram.colors.portGroups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "markdownDescription": "Colour per port-name prefix, e.g. `{ \"s_axi_aw\": \"#1565C0\" }`. Longest prefix wins."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node esbuild.mjs && mocha 'dist/test/unit/**/*.test.js'",
+    "test:integration": "node esbuild.mjs && node dist/test/runIntegration.js",
+    "package": "node esbuild.mjs && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "~1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "elkjs": "^0.12.0",
+    "esbuild": "^0.28.2",
+    "mocha": "^12.0.3",
+    "typescript": "^7.0.2",
+    "yaml": "^2.9.1"
+  }
+}

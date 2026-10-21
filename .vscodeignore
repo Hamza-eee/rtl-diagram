@@ -1,0 +1,10 @@
+src/**
+test/**
+test-fixtures/**
+node_modules/**
+.vscode/**
+.vscode-test/**
+dist/test/**
+**/*.map
+esbuild.mjs
+tsconfig.json
