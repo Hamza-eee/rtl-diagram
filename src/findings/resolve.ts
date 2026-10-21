@@ -2,7 +2,7 @@
 // the DUT module, the port declaration and whatever drives it inside that module.
 
 import { Design, Driver, Module, Port } from '../model';
-import { isNet, moduleAtPath } from '../elab';
+import { isNet, resolveHierPath } from '../elab';
 import { Finding, LogicalLoc, Run, primaryOf } from './run';
 
 export type ResolveStatus = 'ok' | 'no-dut' | 'no-instance' | 'no-signal';
@@ -11,7 +11,8 @@ export interface SignalRef {
   fqn: string;
   role: string;
   signal: string;          // identifier without bit-select
-  instPath: string[];      // instance path below the DUT top
+  instPath: string[];      // instance keys below the DUT top (canonical, see resolveHierPath)
+  hierPath: string[];      // the hierarchical parts as written in the finding, e.g. ["g_ch[0]", "u_core"]
   module?: string;         // module that declares the signal
   port?: Port;
   isNet: boolean;          // declared as an internal net (not a port)
@@ -46,21 +47,23 @@ function splitFqn(run: Run, fqn: string): { instPath: string[]; signal: string }
 }
 
 export function resolveSignal(d: Design, run: Run, l: LogicalLoc): SignalRef {
-  const base: SignalRef = { fqn: l.fqn, role: l.role ?? '', signal: l.name.replace(/\[.*$/, ''), instPath: [], isNet: false, drivers: [], status: 'ok' };
+  const base: SignalRef = { fqn: l.fqn, role: l.role ?? '', signal: l.name.replace(/\[.*$/, ''), instPath: [], hierPath: [], isNet: false, drivers: [], status: 'ok' };
   const top = d.modules[run.dutTop];
   if (!top) return { ...base, status: 'no-dut', reason: `DUT module "${run.dutTop}" is not in the parsed RTL` };
   const sp = splitFqn(run, l.fqn);
-  const instPath = sp?.instPath ?? [];
+  const hierPath = sp?.instPath ?? [];
   const signal = sp?.signal || base.signal;
-  const m: Module | undefined = moduleAtPath(d, run.dutTop, instPath);
-  if (!m) return { ...base, instPath, signal, status: 'no-instance', reason: `no instance path "${instPath.join('.')}" under ${run.dutTop}` };
+  const r = resolveHierPath(d, run.dutTop, hierPath);
+  if (!r.ok) return { ...base, hierPath, signal, status: 'no-instance', reason: `${hierPath.join('.')}: ${r.reason}` };
+  const m: Module = r.module;
+  const instPath = r.path;
   const port = m.ports.find(p => p.name === signal);
   const net = !port && isNet(m, signal);
   if (!port && !net) {
-    return { ...base, instPath, signal, module: m.name, status: 'no-signal', reason: `${m.name} has no port or net named "${signal}"` };
+    return { ...base, instPath, hierPath, signal, module: m.name, status: 'no-signal', reason: `${m.name} has no port or net named "${signal}"` };
   }
   return {
-    ...base, instPath, signal, module: m.name, port, isNet: net,
+    ...base, instPath, hierPath, signal, module: m.name, port, isNet: net,
     drivers: m.drivers.filter(x => x.signal === signal),
     status: 'ok',
   };

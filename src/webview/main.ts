@@ -8,7 +8,7 @@ const vscode = acquireVsCodeApi();
 
 type Level = 'error' | 'warning' | 'note' | 'none';
 interface Marker { f: number; level: Level; role: 'primary' | 'context' | 'driver' }
-interface Markers { pins: Record<string, Marker[]>; nodes: Record<string, { error: number; warning: number; note: number; inside: boolean }>; nets: Record<string, Marker[]> }
+interface Markers { pins: Record<string, Marker[]>; nodes: Record<string, { error: number; warning: number; note: number; inside: boolean }>; nets: Record<string, Marker[]>; byModule: boolean }
 interface FindingRow { index: number; ruleId: string; level: Level; message: string; signal: string; module?: string; resolved: boolean; here: boolean }
 interface Crumb { label: string; sub: string; path: string[] }
 interface ViewMsg {
@@ -470,8 +470,8 @@ function drill(n: VNode) {
     const k = Math.min(4, Math.min(b.width / n.w, b.height / n.h) * 0.7);
     animateTo({ k, x: b.width / 2 - (n.x + n.w / 2) * k, y: b.height / 2 - (n.y + n.h / 2) * k }, true);
     stage.classList.add('diving');
-    setTimeout(() => { stage.classList.remove('diving'); vscode.postMessage({ type: 'drill', inst: n.label }); }, 200);
-  } else vscode.postMessage({ type: 'drill', inst: n.label });
+    setTimeout(() => { stage.classList.remove('diving'); vscode.postMessage({ type: 'drill', inst: n.key }); }, 200);
+  } else vscode.postMessage({ type: 'drill', inst: n.key });
 }
 
 // ---------------------------------------------------------------- selection
@@ -742,6 +742,7 @@ function runHeader() {
   return h('div', { class: `run-head st-${r.broken ? 'broken' : r.status}` },
     h('div', { class: 'run-title' }, h('span', { class: 'run-state' }, r.broken ? 'Broken run' : r.status === 'pass' ? 'Passed' : 'Failed'), h('span', { class: 'mono' }, r.id)),
     h('div', { class: 'muted' }, `${r.testbench} · DUT ${r.dutTop}`),
+    view!.markers.byModule ? h('div', { class: 'warn small' }, `${r.dutTop} is not instantiated exactly once under ${view!.top}, so findings are shown on every instance of the flagged module.`) : null,
     h('div', { class: 'run-counts' },
       h('span', { class: 'cnt lvl-error' }, `${n('error')} error${n('error') === 1 ? '' : 's'}`),
       h('span', { class: 'cnt lvl-warning' }, `${n('warning')} warning${n('warning') === 1 ? '' : 's'}`),

@@ -117,8 +117,8 @@ export class DiagramPanel implements vscode.Disposable {
     const crumbs = [{ label: this.top, sub: '', path: [] as string[] }];
     let cur: typeof m | undefined = d.modules[this.top];
     this.path.forEach((p, i) => {
-      const inst = cur?.instances.find(x => x.name === p);
-      crumbs.push({ label: p, sub: inst?.moduleName ?? '', path: this.path.slice(0, i + 1) });
+      const inst = cur?.instances.find(x => x.key === p);
+      crumbs.push({ label: inst?.name ?? p, sub: inst?.moduleName ?? '', path: this.path.slice(0, i + 1) });
       cur = inst ? d.modules[inst.moduleName] : undefined;
     });
     const run = this.store.activeRun;
@@ -132,7 +132,7 @@ export class DiagramPanel implements vscode.Disposable {
     }) : [];
     this.panel.title = `RTL · ${m.name}`;
     void this.panel.webview.postMessage({
-      type: 'view', graph, crumbs, markers: this.store.markersFor(m),
+      type: 'view', graph, crumbs, markers: this.store.markersFor(this.top, this.path),
       run: run ? { id: run.runId, status: run.status, dutTop: run.dutTop, testbench: run.testbench, broken: run.broken } : null,
       findings, sourceMode: d.sourceMode, tops: this.store.tops(), top: this.top,
       select: this.pendingSelect,
@@ -144,15 +144,14 @@ export class DiagramPanel implements vscode.Disposable {
   showFinding(idx: number) {
     const run = this.store.activeRun;
     const d = this.store.design;
-    const res = this.store.resolutions.get(idx);
+    const p = this.store.resolutions.get(idx)?.primary;
     if (!run || !d) return;
-    const mod = res?.primary?.module;
-    if (mod) {
-      // Prefer the DUT's own hierarchy; otherwise find the module from the current top.
-      const viaDut = d.modules[run.dutTop] ? { top: run.dutTop, path: res!.primary!.instPath } : undefined;
-      const viaTop = this.top ? this.store.pathTo(this.top, mod) : undefined;
-      const target = viaTop !== undefined && this.top ? { top: this.top, path: viaTop } : viaDut ?? { top: mod, path: [] };
-      this.navigate(target.top, target.path, { finding: idx });
+    if (p?.status === 'ok') {
+      // Go to the exact instance the finding names: under the current top if the DUT sits there once,
+      // otherwise from the DUT itself.
+      const pre = this.top ? this.store.dutPrefix(this.top) : null;
+      if (pre !== null) this.navigate(this.top, [...pre, ...p.instPath], { finding: idx });
+      else this.navigate(run.dutTop, p.instPath, { finding: idx });
     } else {
       this.sendDetail(idx);
     }
@@ -203,7 +202,7 @@ export class DiagramPanel implements vscode.Disposable {
       case 'drill': {
         const d = this.store.design;
         const cur = d && moduleAtPath(d, this.top, this.path);
-        const inst = cur?.instances.find(i => i.name === m.inst);
+        const inst = cur?.instances.find(i => i.key === m.inst);
         if (inst && d!.modules[inst.moduleName]) this.navigate(this.top, [...this.path, m.inst]);
         return;
       }
@@ -234,9 +233,17 @@ export class DiagramPanel implements vscode.Disposable {
         vscode.window.setStatusBarMessage('Copied to clipboard', 2000);
         return;
       case 'runInTerminal': {
+        // The command comes from a findings file, so it is untrusted. The terminal turns any
+        // newline or control character into keystrokes, which would run (part of) it immediately.
+        const text = String(m.text ?? '');
+        if (/[\x00-\x1f\x7f]/.test(text)) {
+          void vscode.window.showWarningMessage(
+            'The reproduce command contains a line break or control character, so it was not typed into a terminal. Use Copy and check it first.');
+          return;
+        }
         const t = vscode.window.createTerminal({ name: 'RTL Diagram: reproduce', cwd: m.cwd && fs.existsSync(m.cwd) ? m.cwd : undefined });
         t.show();
-        t.sendText(m.text, false);   // typed, not executed: the user presses Enter
+        t.sendText(text, false);   // typed, not executed: the user presses Enter
         return;
       }
       case 'setTheme':

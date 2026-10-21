@@ -40,6 +40,7 @@ export const DEFAULT_VIEW_OPTIONS: ViewOptions = {
 export interface VNode {
   id: string;
   kind: 'in' | 'out' | 'inout' | 'inst' | 'logic';
+  key?: string;                   // instance key (unique in the module) for 'inst' nodes
   label: string;
   sub?: string;                   // module name for instances
   x: number; y: number; w: number; h: number;
@@ -113,7 +114,7 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
   m.instances.forEach((inst, i) => {
     const child = d.modules[inst.moduleName];
     const conns = resolveConnections(d, m, i);
-    const id = `inst:${inst.name}`;
+    const id = `inst:${inst.key}`;
     const pins: VPin[] = [];
     const seen = new Set<string>();
     const pinFor = (name: string, dir: PinDir, cp?: Port) => {
@@ -141,7 +142,7 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
     // Ports with no connection entry at all (not listed, no .*) are open.
     for (const p of pins) if (p.expr === undefined) p.open = true;
     nodes.push({
-      id, kind: 'inst', label: inst.name, sub: inst.moduleName, x: 0, y: 0, w: 0, h: 0, pins,
+      id, kind: 'inst', key: inst.key, label: inst.name, sub: inst.moduleName, x: 0, y: 0, w: 0, h: 0, pins,
       drillable: !!child, missing: !child, generate: inst.generate, params: inst.params, loc: inst.loc, defLoc: child?.headerLoc,
     });
   });

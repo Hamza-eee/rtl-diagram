@@ -38,12 +38,14 @@ export interface Connection {
 }
 
 export interface Instance {
-  name: string;
+  name: string;          // as written, plus any instance-array range, e.g. "u_arr[1:0]"
+  key: string;           // unique within the module: name, or name#2, name#3… for repeats (if/else generate branches)
   moduleName: string;
   params: { name: string; expr: string }[];
   connections: Connection[];
   wildcard: boolean;     // `.*` present
-  generate?: string;     // e.g. "for gen_channel (channel_i < N_CH)" when inside a generate construct
+  generate?: string;     // e.g. "gen_channel: for (…)" when inside a generate construct
+  genScopes: string[];   // enclosing generate block labels, outermost first ('' for an unlabelled block)
   loc: SrcLoc;
 }
 
@@ -53,7 +55,7 @@ export interface Driver {
   signal: string;        // base identifier on the LHS
   kind: DriverKind;
   text: string;          // one-line summary of the statement
-  instance?: string;     // for kind === 'instance': driving instance name
+  instance?: string;     // for kind === 'instance': key of the driving instance
   instPort?: string;     // ...and its port
   loc: SrcLoc;
 }

@@ -60,7 +60,7 @@ export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
         it.tooltip = m ? `${n.module}\n${m.file}${m.pkg ? `\npackage: ${m.pkg}` : ''}\n${m.ports.length} ports · ${m.instances.length} instances\n\nClick to open in the diagram.` : `${n.module}: not found in the RTL sources`;
         it.contextValue = m ? 'module' : 'missing';
         if (m) it.command = { command: 'rtlDiagram.showModule', title: 'Show in diagram', arguments: [{ top: n.top, path: n.path }] };
-        const counts = this.findingCount(n.module!);
+        const counts = this.store.findingCountAt(n.top!, n.path ?? []);
         if (counts) it.description = `${it.description ?? ''}  ● ${counts}`.trim();
         return it;
       }
@@ -68,12 +68,6 @@ export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
   }
 
   private firstTop?: HierNode;
-
-  private findingCount(mod: string): number {
-    let c = 0;
-    for (const r of this.store.resolutions.values()) if (r.primary?.status === 'ok' && r.primary.module === mod) c++;
-    return c;
-  }
 
   getChildren(n?: HierNode): HierNode[] {
     const d = this.store.design;
@@ -105,10 +99,10 @@ export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
       // Guard against recursive instantiation.
       const chain = new Set<string>([n.top!]);
       let cur = d.modules[n.top!];
-      for (const p of n.path ?? []) { const i = cur?.instances.find(x => x.name === p); if (!i) break; chain.add(i.moduleName); cur = d.modules[i.moduleName]; }
+      for (const p of n.path ?? []) { const i = cur?.instances.find(x => x.key === p); if (!i) break; chain.add(i.moduleName); cur = d.modules[i.moduleName]; }
       return m.instances
         .filter(i => !chain.has(i.moduleName) || i.moduleName !== m.name)
-        .map(i => ({ kind: 'inst' as const, top: n.top, path: [...(n.path ?? []), i.name], module: i.moduleName, instName: i.name }));
+        .map(i => ({ kind: 'inst' as const, top: n.top, path: [...(n.path ?? []), i.key], module: i.moduleName, instName: i.name }));
     }
     return [];
   }

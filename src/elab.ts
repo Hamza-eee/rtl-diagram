@@ -77,7 +77,7 @@ function addInstanceDrivers(d: Design, m: Module) {
       if (c.dir !== 'output' && c.dir !== 'inout') continue;
       for (const s of c.signals) {
         const drv: Driver = {
-          signal: s, kind: 'instance', instance: inst.name, instPort: c.port,
+          signal: s, kind: 'instance', instance: inst.key, instPort: c.port,
           text: `${inst.moduleName} ${inst.name} (.${c.port}(${c.expr}))`,
           loc: inst.connections.find(x => x.port === c.port)?.loc ?? inst.loc,
         };
@@ -101,15 +101,61 @@ export function topCandidates(d: Design): string[] {
   return tops.sort((a, b) => size(b) - size(a) || a.localeCompare(b));
 }
 
-/** Module at the end of an instance path from `top`, e.g. ["u_core", "u_alu"]. */
+/** Module at the end of an instance-key path from `top`, e.g. ["u_core", "u_alu"]. */
 export function moduleAtPath(d: Design, top: string, instPath: string[]): Module | undefined {
   let m = d.modules[top];
-  for (const name of instPath) {
-    const inst = m?.instances.find(i => i.name === name || i.name.split('[')[0] === name);
+  for (const key of instPath) {
+    const inst = m?.instances.find(i => i.key === key);
     if (!inst) return undefined;
     m = d.modules[inst.moduleName];
   }
   return m;
+}
+
+export type HierResult = { ok: true; path: string[]; module: Module } | { ok: false; reason: string };
+
+const baseName = (s: string) => s.replace(/\[[^\]]*\]$/, '');
+
+/**
+ * Resolve a simulator hierarchical path below `top` (the parts between the DUT instance
+ * and the signal, e.g. ["g_ch[0]", "u_core"] or ["u_arr[1]"]) to instance keys.
+ *
+ * Rules, applied per element:
+ *  - an element whose base name (without a trailing [index]) names an instance whose
+ *    generate scopes equal the scopes consumed so far enters that instance;
+ *  - otherwise, an element naming a generate block label in the current module, or an
+ *    implicit `genblkN` (IEEE 1800 §27.6), is consumed as a scope;
+ *  - a base name matching exactly one instance is accepted even if the scopes differ;
+ *  - anything else fails, with a reason.
+ */
+export function resolveHierPath(d: Design, top: string, elems: string[]): HierResult {
+  let m = d.modules[top];
+  if (!m) return { ok: false, reason: `module "${top}" is not in the parsed RTL` };
+  const path: string[] = [];
+  let scopes: string[] = [];
+  for (const e of elems) {
+    const b = baseName(e);
+    const cands = m.instances.filter(i => baseName(i.name) === b);
+    const named = cands.filter(i => i.genScopes.filter(Boolean).join('.') === scopes.filter(x => !/^genblk\d+$/.test(x)).join('.'));
+    // A unique base-name match is accepted even if the scopes differ (some tools omit them).
+    const inst = named[0] ?? (cands.length === 1 ? cands[0] : undefined);
+    if (inst) {
+      const child = d.modules[inst.moduleName];
+      if (!child) return { ok: false, reason: `instance ${inst.name} is a "${inst.moduleName}", which is not in the parsed RTL` };
+      path.push(inst.key);
+      m = child;
+      scopes = [];
+      continue;
+    }
+    const isScope = /^genblk\d+$/.test(b) || m.instances.some(i => i.genScopes.includes(b));
+    if (isScope) { scopes.push(b); continue; }
+    if (cands.length) {
+      return { ok: false, reason: `${m.name} has an instance ${b}, but not inside generate scope "${scopes.join('.') || '(none)'}"` };
+    }
+    return { ok: false, reason: `${m.name} has no instance or generate block named "${b}"` };
+  }
+  if (scopes.length) return { ok: false, reason: `path ends inside generate scope "${scopes.join('.')}" of ${m.name}` };
+  return { ok: true, path, module: m };
 }
 
 // ---------- width evaluation (constant folding over parameter defaults) ----------

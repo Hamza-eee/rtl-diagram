@@ -5,6 +5,8 @@ import { CstNode, ParsedFile } from './verible';
 import { Connection, Direction, Driver, DriverKind, Instance, Module, Param, Port, SrcLoc } from '../model';
 
 type N = CstNode | null | undefined;
+/** One enclosing generate construct: its block label ('' if unlabelled) and a one-line description. */
+interface Gen { label: string; desc: string }
 
 const DIRS = new Set(['input', 'output', 'inout', 'ref']);
 // Tags whose contents are index/select expressions, not signal references in their own right.
@@ -142,6 +144,13 @@ class Extractor {
 
     const items = find(decl, 'kModuleItemList');
     this.items(items, m, []);
+    // Unique keys: the same instance name may appear in several if/else generate branches.
+    const seen = new Map<string, number>();
+    for (const inst of m.instances) {
+      const k = (seen.get(inst.name) ?? 0) + 1;
+      seen.set(inst.name, k);
+      inst.key = k === 1 ? inst.name : `${inst.name}#${k}`;
+    }
     return m;
   }
 
@@ -230,11 +239,11 @@ class Extractor {
     }
   }
 
-  items(list: N, m: Module, gen: string[]) {
+  items(list: N, m: Module, gen: Gen[]) {
     for (const c of kids(list)) this.item(c, m, gen);
   }
 
-  item(c: CstNode, m: Module, gen: string[]) {
+  item(c: CstNode, m: Module, gen: Gen[]) {
     switch (c.tag) {
       case 'kParamDeclaration':
         this.param(c, m, true);
@@ -287,7 +296,7 @@ class Extractor {
         const hdr = this.oneLine(find(c, 'kLoopHeader'), 80);
         const blk = find(c, 'kGenerateBlock');
         const label = this.label(blk);
-        this.genBody(blk ?? c, m, [...gen, `${label ? label + ': ' : ''}${hdr}`]);
+        this.genBody(blk ?? c, m, [...gen, { label, desc: `${label ? label + ': ' : ''}${hdr}` }]);
         return;
       }
       case 'kConditionalGenerateConstruct': {
@@ -295,12 +304,12 @@ class Extractor {
           const hdr = this.oneLine(findDeep(clause, 'kGenerateIfHeader') ?? findDeep(clause, 'kGenerateElseHeader'), 80) || 'else';
           const blk = findDeep(clause, 'kGenerateBlock');
           const label = this.label(blk);
-          this.genBody(blk ?? clause, m, [...gen, `${label ? label + ': ' : ''}${hdr}`]);
+          this.genBody(blk ?? clause, m, [...gen, { label, desc: `${label ? label + ': ' : ''}${hdr}` }]);
         }
         return;
       }
       case 'kCaseGenerateConstruct': {
-        this.genBody(c, m, [...gen, this.oneLine(c, 60)]);
+        this.genBody(c, m, [...gen, { label: '', desc: this.oneLine(c, 60) }]);
         return;
       }
       case 'kGenerateBlock':
@@ -311,7 +320,7 @@ class Extractor {
     }
   }
 
-  genBody(n: CstNode, m: Module, gen: string[]) {
+  genBody(n: CstNode, m: Module, gen: Gen[]) {
     const list = find(n, 'kGenerateItemList');
     if (list) return this.items(list, m, gen);
     for (const c of kids(n)) {
@@ -338,7 +347,7 @@ class Extractor {
     m.drivers.push({ signal, kind, text: this.oneLine(stmt), loc: this.loc(stmt) });
   }
 
-  instance(base: CstNode, g: CstNode, m: Module, gen: string[]) {
+  instance(base: CstNode, g: CstNode, m: Module, gen: Gen[]) {
     const it = find(base, 'kInstantiationType');
     const dt = find(it, 'kDataType') ?? it;
     // Module name: first identifier in the type, outside the parameter list.
@@ -386,9 +395,11 @@ class Extractor {
     }
     m.instances.push({
       name: instTok.text + this.oneLine(find(g, 'kUnpackedDimensions')),
+      key: '',   // assigned once the whole module is read
       moduleName: modTok.text,
       params, connections: conns, wildcard,
-      generate: gen.length ? gen.join(' / ') : undefined,
+      generate: gen.length ? gen.map(x => x.desc).join(' / ') : undefined,
+      genScopes: gen.map(x => x.label),
       loc: this.loc(g),
     });
   }

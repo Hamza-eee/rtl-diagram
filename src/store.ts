@@ -8,15 +8,9 @@ import { buildDesign, topCandidates } from './elab';
 import { discoverSources, SourceSet } from './sources/discover';
 import { parseFiles } from './sv/verible';
 import { extractModules } from './sv/extract';
-import { Finding, Level, Run, loadRun } from './findings/run';
+import { Finding, Run, loadRun } from './findings/run';
 import { Resolution, resolveFinding } from './findings/resolve';
-
-export interface Marker { f: number; level: Level; role: 'primary' | 'context' | 'driver' }
-export interface ViewMarkers {
-  pins: Record<string, Marker[]>;
-  nodes: Record<string, { error: number; warning: number; note: number; inside: boolean }>;
-  nets: Record<string, Marker[]>;
-}
+import { ViewMarkers, countAt, dutPrefix, markersFor } from './findings/markers';
 
 export class Store implements vscode.Disposable {
   design?: Design;
@@ -109,79 +103,18 @@ export class Store implements vscode.Disposable {
 
   tops(): string[] { return this.design ? topCandidates(this.design) : []; }
 
-  /** Instance path from `top` to the first instance of `target`, depth-first in source order. */
-  pathTo(top: string, target: string): string[] | undefined {
-    const d = this.design;
-    if (!d) return undefined;
-    if (top === target) return [];
-    const seen = new Set<string>();
-    const dfs = (mod: string): string[] | undefined => {
-      if (seen.has(mod)) return undefined;
-      seen.add(mod);
-      for (const i of d.modules[mod]?.instances ?? []) {
-        if (i.moduleName === target) return [i.name];
-        const r = dfs(i.moduleName);
-        if (r) return [i.name, ...r];
-      }
-      return undefined;
-    };
-    return dfs(top);
+  /** Path from `top` to the active run's DUT, or null if it is absent or not unique there. */
+  dutPrefix(top: string): string[] | null {
+    return this.design && this.activeRun ? dutPrefix(this.design, top, this.activeRun.dutTop) : null;
   }
 
-  /** Modules reachable below `mod` (for "finding inside this block" badges). */
-  private below(mod: string, acc = new Set<string>()): Set<string> {
-    for (const i of this.design?.modules[mod]?.instances ?? []) {
-      if (!acc.has(i.moduleName)) { acc.add(i.moduleName); this.below(i.moduleName, acc); }
-    }
-    return acc;
+  markersFor(top: string, path: string[]): ViewMarkers {
+    if (!this.design) return { pins: {}, nodes: {}, nets: {}, byModule: false };
+    return markersFor(this.design, this.activeRun, this.resolutions, top, path);
   }
 
-  markersFor(mod: Module): ViewMarkers {
-    const out: ViewMarkers = { pins: {}, nodes: {}, nets: {} };
-    const run = this.activeRun;
-    if (!run) return out;
-    const push = (rec: Record<string, Marker[]>, k: string, mk: Marker) => {
-      const l = (rec[k] ??= []);
-      if (!l.some(x => x.f === mk.f && x.role === mk.role)) l.push(mk);
-    };
-    const bump = (id: string, level: Level, inside: boolean) => {
-      const n = (out.nodes[id] ??= { error: 0, warning: 0, note: 0, inside: false });
-      if (level === 'error' || level === 'warning' || level === 'note') n[level]++;
-      n.inside ||= inside;
-    };
-    for (const f of run.findings) {
-      const res = this.resolutions.get(f.index);
-      if (!res) continue;
-      const refs = [...(res.primary ? [res.primary] : []), ...res.context];
-      const badged = new Set<string>();
-      for (const ref of refs) {
-        if (ref.status !== 'ok' || !ref.module) continue;
-        const role = ref === res.primary ? 'primary' : 'context';
-        const mk: Marker = { f: f.index, level: f.level, role };
-        if (ref.module === mod.name) {
-          if (ref.port) push(out.pins, `port:${ref.signal}/p`, mk);
-          push(out.nets, ref.signal, mk);
-          if (role === 'primary') {
-            for (const d of ref.drivers) {
-              const dm: Marker = { f: f.index, level: f.level, role: 'driver' };
-              if (d.kind === 'instance' && d.instance && d.instPort) push(out.pins, `inst:${d.instance}/${d.instPort}`, dm);
-              else push(out.pins, `logic/${ref.signal}`, dm);
-            }
-          }
-        }
-        for (const inst of mod.instances) {
-          const id = `inst:${inst.name}`;
-          if (inst.moduleName === ref.module) {
-            if (ref.port) push(out.pins, `${id}/${ref.signal}`, mk);
-            if (!badged.has(id)) { badged.add(id); bump(id, f.level, false); }
-          } else if (this.below(inst.moduleName).has(ref.module) && !badged.has(id)) {
-            badged.add(id);
-            bump(id, f.level, true);
-          }
-        }
-      }
-    }
-    return out;
+  findingCountAt(top: string, path: string[]): number {
+    return this.design ? countAt(this.design, this.activeRun, this.resolutions, top, path) : 0;
   }
 
   finding(idx: number): Finding | undefined {
