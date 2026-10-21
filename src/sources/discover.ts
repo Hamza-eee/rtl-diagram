@@ -12,6 +12,7 @@ export interface DiscoverOptions {
   roots: string[];            // workspace folders
   mode: SourceMode;
   benderRoots: string[];      // relative to the first root, or absolute
+  benderTargets?: string[];   // active Bender targets for `target:` source groups
   filelists: string[];
   include: string;
   exclude: string[];
@@ -45,10 +46,13 @@ export function discoverSources(o: DiscoverOptions): SourceSet {
       }
     }
     if (!dirs.length) return null;
-    const b = loadBender(dirs);
+    const b = loadBender(dirs, o.benderTargets ?? []);
     const files = b.files.filter(f => keep(f.file));
     const pkgs = new Set(files.map(f => f.pkg)).size;
-    return { mode: 'bender', label: `Bender · ${pkgs} package${pkgs === 1 ? '' : 's'} · ${files.length} files`, files, issues: b.issues };
+    const skipped = b.packages.reduce((n, p) => n + p.skippedGroups.length, 0);
+    const label = `Bender · ${pkgs} package${pkgs === 1 ? '' : 's'} · ${files.length} files`
+      + (skipped ? ` · ${skipped} target group${skipped === 1 ? '' : 's'} off` : '');
+    return { mode: 'bender', label, files, issues: b.issues };
   };
   const tryFilelist = (): SourceSet | null => {
     if (!o.filelists.length) return null;

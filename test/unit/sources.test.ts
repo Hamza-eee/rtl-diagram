@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { loadBender } from '../../src/sources/bender';
+import { evalTarget, loadBender } from '../../src/sources/bender';
 import { loadFilelists } from '../../src/sources/filelist';
 import { discoverSources } from '../../src/sources/discover';
 import { globToRegExp } from '../../src/util/glob';
@@ -44,6 +44,49 @@ describe('Bender reader', () => {
     const b = loadBender([dir]);
     assert.strictEqual(b.packages[0].name, 'lonely');
     assert.match(b.issues[0], /dependency "ghost" is not a path dependency/);
+    fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('Bender targets', () => {
+  const on = (...t: string[]) => new Set(t);
+  const cases: [string, Set<string>, boolean | undefined][] = [
+    ['*', on(), true],
+    ['test', on(), false],
+    ['test', on('test'), true],
+    ['TEST', on('test'), true],
+    ['not(test)', on(), true],
+    ['all(xilinx, not(asic))', on('xilinx'), true],
+    ['all(xilinx, not(asic))', on('xilinx', 'asic'), false],
+    ['any(sim, test)', on('sim'), true],
+    ['any(sim, test)', on(), false],
+    ['all(a, any(b, not(c)))', on('a'), true],
+    ['not(a, b)', on(), undefined],
+    ['all(a', on(), undefined],
+    ['a b', on(), undefined],
+    ['a;rm', on(), undefined],
+  ];
+  for (const [expr, active, want] of cases) {
+    it(`${expr} with {${[...active].join(',')}} → ${want}`, () => assert.strictEqual(evalTarget(expr, active), want));
+  }
+
+  it('includes groups only for the active targets', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rtl-bt-'));
+    for (const f of ['core.sv', 'tb.sv', 'cell_fpga.sv', 'cell_asic.sv', 'odd.sv']) fs.writeFileSync(path.join(dir, f), 'module x; endmodule\n');
+    fs.writeFileSync(path.join(dir, 'Bender.yml'), [
+      'package:', '  name: gated', 'sources:', '  - core.sv',
+      '  - target: test', '    files: [tb.sv]',
+      '  - target: xilinx', '    files: [cell_fpga.sv]',
+      '  - target: not(xilinx)', '    files: [cell_asic.sv]',
+      '  - target: "all(("', '    files: [odd.sv]', '',
+    ].join('\n'));
+    const names = (t: string[]) => loadBender([dir], t).files.map(f => path.basename(f.file));
+    assert.deepStrictEqual(names([]), ['core.sv', 'cell_asic.sv']);
+    assert.deepStrictEqual(names(['xilinx']), ['core.sv', 'cell_fpga.sv']);
+    assert.deepStrictEqual(names(['test', 'xilinx']), ['core.sv', 'tb.sv', 'cell_fpga.sv']);
+    const b = loadBender([dir]);
+    assert.deepStrictEqual(b.packages[0].skippedGroups, ['test', 'xilinx']);
+    assert.match(b.issues[0], /cannot read target expression "all\(\("/);
     fs.rmSync(dir, { recursive: true });
   });
 });

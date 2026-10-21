@@ -18,7 +18,7 @@ It's meant for design and verification engineers working on the same code. Desig
 
 In `auto` mode, the first of these that exists is used:
 
-1. **Bender.** Every `Bender.yml` in the workspace is read directly: `sources` in order, globs expanded, and `path` dependencies followed. `bender` itself is never run, so nothing is written to your repository. Git dependencies resolve if they are already checked out under `.bender/`.
+1. **Bender.** Every `Bender.yml` in the workspace is read directly: `sources` in order, globs expanded, and `path` dependencies followed. Source groups with a `target:` are included only when the expression holds for `rtlDiagram.benderTargets` (default: none active, so `test`, `simulation` and technology-specific groups are left out). `bender` itself is never run, so nothing is written to your repository. Git dependencies resolve if they are already checked out under `.bender/`.
 2. **Filelists** (`rtlDiagram.filelists`). Plain paths, `-f` nesting, `+incdir+`, `-v` and `-y` are supported.
 3. **Include glob** (`rtlDiagram.include`, default `**/*.{sv,v}`).
 
@@ -66,6 +66,7 @@ A net is drawn only if the module declares it as a port, net or variable. Parame
 | `rtlDiagram.veriblePath` | `verible-verilog-syntax` | parser binary |
 | `rtlDiagram.sourceMode` | `auto` | `auto`, `bender`, `filelist`, `glob` |
 | `rtlDiagram.benderRoots` | `[]` | restrict Bender discovery to these folders |
+| `rtlDiagram.benderTargets` | `[]` | active Bender targets for `target:` source groups |
 | `rtlDiagram.filelists` | `[]` | `.f` files to read |
 | `rtlDiagram.include` / `exclude` | see above | globs |
 | `rtlDiagram.runsGlob` | `**/reports/*/run.json` | where runs are found |

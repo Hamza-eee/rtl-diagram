@@ -56,6 +56,7 @@ export class Store implements vscode.Disposable {
         roots,
         mode: c.get('sourceMode', 'auto'),
         benderRoots: c.get('benderRoots', []),
+        benderTargets: c.get('benderTargets', []),
         filelists: c.get('filelists', []),
         include: c.get('include', '**/*.{sv,v}'),
         exclude: c.get('exclude', []),

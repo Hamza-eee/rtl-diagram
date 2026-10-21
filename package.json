@@ -167,6 +167,12 @@
           "default": [],
           "markdownDescription": "Folders (workspace-relative) whose `Bender.yml` are roots. Empty: every Bender.yml in the workspace."
         },
+        "rtlDiagram.benderTargets": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Active Bender targets for source groups with a `target:` expression (e.g. `[\"synthesis\", \"xilinx\"]`). Empty: plain RTL, where `test`, `simulation` and technology-specific groups are left out."
+        },
         "rtlDiagram.filelists": {
           "type": "array",
           "items": {
