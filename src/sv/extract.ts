@@ -266,10 +266,10 @@ class Extractor {
           if (g.tag === 'kGateInstance') this.instance(base!, g, m, gen);
           else if (g.tag === 'kRegisterVariable') {
             const t = this.ownName(g);
-            if (t?.text) {
-              m.nets.push(t.text);
-              if (find(g, 'kTrailingAssign')) { this.driver(m, t.text, 'assign', c); this.read(m, find(g, 'kTrailingAssign')); }
-            }
+            // `logic r = '0;` declares a variable with an initial value (IEEE 1800 §6.8), not a
+            // continuous driver, so the initializer is neither a driver nor a read. Net declaration
+            // assignments (`wire w = a;`) are continuous and handled under kNetDeclaration.
+            if (t?.text) m.nets.push(t.text);
           }
         }
         return;

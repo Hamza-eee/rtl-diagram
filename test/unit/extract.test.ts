@@ -9,7 +9,7 @@ describe('extract: synthetic edge cases', () => {
   before(async () => { d = await designOf([path.join(FIX, 'sv/edge_cases.sv')]); });
 
   it('finds every module', () => {
-    assert.deepStrictEqual(Object.keys(d.modules).sort(), ['leaf', 'old_style', 'top']);
+    assert.deepStrictEqual(Object.keys(d.modules).sort(), ['decl_assign', 'leaf', 'old_style', 'top']);
   });
 
   it('reads ANSI ports, including `input a, b` continuations and implicit types', () => {
@@ -76,6 +76,16 @@ describe('extract: synthetic edge cases', () => {
     assert.deepStrictEqual(dOf('y'), ['always_comb', 'instance', 'instance']);  // u_leaf.y, u_wild.y (.*), and the always_comb
     assert.deepStrictEqual(dOf('q'), ['instance']);
     assert.deepStrictEqual(d.modules.old_style.drivers.map(x => [x.signal, x.kind]), [['q', 'always'], ['q', 'always']]);
+    // a variable initializer (`logic clk2 = clk;`) is an initial value, not a driver
+    assert.deepStrictEqual(dOf('clk2'), []);
+    assert.ok(top.nets.includes('clk2'));
+  });
+
+  it('treats a net declaration assignment as a driver and a variable initializer as not', () => {
+    const m = d.modules.decl_assign;
+    const dOf = (s: string) => m.drivers.filter(x => x.signal === s).map(x => x.kind);
+    assert.deepStrictEqual(dOf('n'), ['assign']);
+    assert.deepStrictEqual(dOf('r'), ['always_ff']);
   });
 
   it('reports source locations as 0-based lines', () => {

@@ -64,3 +64,12 @@ module top #(parameter N = 2) (
     {y[0], y[1]} = 2'b00;
   end
 endmodule
+
+// Net declaration assignment (continuous) vs variable initializer (initial value only).
+module decl_assign (input logic a, output logic y, output wire w);
+  wire n = a;
+  logic r = 1'b0;
+  assign w = n;
+  always_ff @(posedge a) r <= ~r;
+  assign y = r;
+endmodule
