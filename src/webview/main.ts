@@ -189,25 +189,31 @@ stage.addEventListener('wheel', e => {
 stage.addEventListener('pointerdown', e => {
   if (e.button !== 0 && e.button !== 1) return;
   if ((e.target as Element).closest('.minimap')) return;
+  // No pointer capture yet: capturing here would retarget the click/dblclick
+  // that follows to the stage, so blocks could never be selected or opened.
   drag = { x: e.clientX, y: e.clientY, tx: T.x, ty: T.y, moved: false };
-  stage.setPointerCapture(e.pointerId);
 });
 stage.addEventListener('pointermove', e => {
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  if (!drag.moved) stage.setPointerCapture(e.pointerId);   // a real pan: keep it even if the pointer leaves
   drag.moved = true;
   stage.classList.add('panning');
   hideTip();
   T = { ...T, x: drag.tx + dx, y: drag.ty + dy };
   applyT();
 });
+let swallowClick = false;
 stage.addEventListener('pointerup', e => {
   const wasDrag = drag?.moved;
   drag = null;
   stage.classList.remove('panning');
+  swallowClick = !!wasDrag;
   if (!wasDrag && (e.target === svg || e.target === gridRect)) { select(null); }
 });
+// A pan that ends over a block must not also select it.
+stage.addEventListener('click', e => { if (swallowClick) { swallowClick = false; e.stopPropagation(); } }, true);
 new ResizeObserver(() => { if (view) drawMiniViewport(); }).observe(stage);
 
 // ---------------------------------------------------------------- colours
