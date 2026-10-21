@@ -322,3 +322,55 @@ ul.plain li { padding: 2px 0; }
   .find { width: 110px; }
   .keys { display: none; }
 }
+
+/* ---------- notes: speech bubbles on the diagram, Notes tab in the drawer */
+.kind-note { --nk: var(--accent); }
+.kind-question { --nk: var(--ch-w); }
+.kind-issue { --nk: var(--c-warn); }
+.nb { cursor: pointer; }
+.nb-shape { fill: var(--nk); stroke: var(--paper); stroke-width: 1.5; paint-order: stroke; }
+.nb-lines { stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
+.nb-t { font: 700 9.5px var(--ui); fill: #fff; pointer-events: none; }
+.nb.resolved .nb-shape { fill: var(--paper); stroke: var(--nk); stroke-width: 1.4; opacity: .8; }
+.nb.resolved .nb-lines { stroke: var(--nk); }
+.nb.resolved .nb-t { fill: var(--nk); }
+.nb:hover .nb-shape, .nb:focus-visible .nb-shape { filter: brightness(1.1); }
+.far .nb { display: none; }
+
+.module-notes { position: absolute; left: 12px; top: 12px; z-index: 5; border: 0; border-radius: 12px; padding: 3px 10px 3px 24px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: color-mix(in srgb, var(--nk) 16%, var(--panel)); color: var(--fg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nk) 45%, transparent); }
+.module-notes::before { content: ''; position: absolute; left: 9px; top: 50%; width: 9px; height: 7px; margin-top: -4px; border-radius: 2px; background: var(--nk); }
+.module-notes.resolved { opacity: .7; }
+.module-notes[hidden] { display: none; }
+
+.ctxmenu { position: absolute; left: 0; top: 0; z-index: 40; min-width: 200px; padding: 4px; background: var(--vscode-menu-background, var(--panel)); color: var(--vscode-menu-foreground, var(--fg));
+  border: 1px solid var(--vscode-menu-border, var(--line)); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.22); }
+.ctxmenu[hidden] { display: none; }
+.ctxmenu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12.5px; }
+.ctxmenu button:hover, .ctxmenu button:focus-visible { background: var(--vscode-menu-selectionBackground, var(--hover)); color: var(--vscode-menu-selectionForeground, inherit); outline: none; }
+.ctx-none { padding: 6px 10px; color: var(--muted); font-size: 12px; }
+
+.notes-panel { padding-bottom: 12px; }
+.note-form { margin: 10px 12px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.nf-title { font-weight: 600; margin-bottom: 8px; word-break: break-word; }
+.kinds { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; padding: 1px; margin-bottom: 8px; }
+.kind-btn { border: 0; background: transparent; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--muted); }
+.kind-btn.on { background: color-mix(in srgb, var(--nk) 18%, transparent); color: var(--fg); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nk) 55%, transparent); }
+.note-input { width: 100%; min-height: 72px; resize: vertical; font: 13px/1.45 var(--ui); padding: 7px 8px; border-radius: 5px;
+  border: 1px solid var(--input-line); background: var(--input-bg); color: var(--input-fg); }
+.note-input:focus { outline: 1.5px solid var(--accent); outline-offset: -1px; }
+.nf-scope { display: flex; gap: 6px; align-items: baseline; margin-top: 8px; font-size: 12px; cursor: pointer; }
+.act:disabled { opacity: .45; cursor: default; filter: none; }
+
+.note { margin: 4px 10px; padding: 9px 10px 8px 12px; border-radius: 6px; border-left: 3px solid var(--nk); background: color-mix(in srgb, var(--nk) 5%, transparent); }
+.note.focus { background: color-mix(in srgb, var(--nk) 13%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nk) 40%, transparent); }
+.note.resolved { opacity: .62; }
+.note-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.note-where { font-size: 12px; }
+.note .chip { background: var(--nk); }
+.note-text { margin: 6px 0 4px; white-space: pre-wrap; word-break: break-word; }
+.note-meta { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.note-actions { display: inline-flex; gap: 10px; }
+.link.danger { color: var(--c-err); }
+.tip-note { margin: 2px 0; }
+.tip-note .chip { background: var(--nk); }

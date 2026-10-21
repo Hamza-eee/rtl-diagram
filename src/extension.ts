@@ -104,15 +104,20 @@ export async function activate(ctx: vscode.ExtensionContext) {
   const w1 = vscode.workspace.createFileSystemWatcher('**/*.{sv,svh,v,vh}');
   const w2 = vscode.workspace.createFileSystemWatcher('**/{Bender.yml,*.f}');
   const w3 = vscode.workspace.createFileSystemWatcher('**/run.json');
+  const w4 = vscode.workspace.createFileSystemWatcher(`**/${store.notesFolderName()}/*.json`);
+  let tn: NodeJS.Timeout | undefined;
+  const reloadNotes = () => { if (tn) clearTimeout(tn); tn = setTimeout(() => store.reloadNotes(), 200); };
+  w4.onDidChange(reloadNotes); w4.onDidCreate(reloadNotes); w4.onDidDelete(reloadNotes);
   for (const w of [w1, w2]) { w.onDidChange(schedule); w.onDidCreate(schedule); w.onDidDelete(schedule); }
   w3.onDidCreate(() => void store.rescanRuns());
   w3.onDidDelete(() => void store.rescanRuns());
-  ctx.subscriptions.push(w1, w2, w3, vscode.workspace.onDidChangeConfiguration(e => {
+  ctx.subscriptions.push(w1, w2, w3, w4, vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('rtlDiagram')) { schedule(); void store.rescanRuns(); }
   }));
 
   updateStatus();
   await Promise.all([store.rescanDesign(), store.rescanRuns()]);
+  store.reloadNotes();
   return { store };   // exposed for integration tests
 }
 

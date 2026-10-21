@@ -7,6 +7,8 @@ import { moduleAtPath } from './elab';
 import { SrcLoc } from './model';
 import { primaryOf, repoPath } from './findings/run';
 import { SignalRef } from './findings/resolve';
+import { pathsTo } from './findings/markers';
+import { anchorLabel, detachedReason, noteMarksFor } from './notes/notes';
 
 type ThemeMode = 'auto' | 'light' | 'dark';
 
@@ -19,7 +21,7 @@ export class DiagramPanel implements vscode.Disposable {
   private path: string[] = [];
   private disposables: vscode.Disposable[] = [];
   private ready = false;
-  private pendingSelect?: { finding?: number; node?: string };
+  private pendingSelect?: { finding?: number; node?: string; note?: string };
   private renderSeq = 0;
 
   static show(ctx: vscode.ExtensionContext, store: Store): DiagramPanel {
@@ -55,7 +57,7 @@ export class DiagramPanel implements vscode.Disposable {
     this.panel.dispose();
   }
 
-  navigate(top: string, instPath: string[], select?: { finding?: number; node?: string }) {
+  navigate(top: string, instPath: string[], select?: { finding?: number; node?: string; note?: string }) {
     this.top = top;
     this.path = instPath;
     this.pendingSelect = select;
@@ -130,11 +132,19 @@ export class DiagramPanel implements vscode.Disposable {
         resolved: r?.primary?.status === 'ok', here: r?.primary?.module === m!.name,
       };
     }) : [];
+    const nm = noteMarksFor(d, this.store.notes, this.top, this.path);
+    const notes = {
+      marks: nm.marks, here: nm.here, issues: this.store.noteIssues,
+      all: this.store.notes.map(n => ({
+        id: n.id, kind: n.kind, text: n.text, author: n.author, created: n.created, updated: n.updated,
+        resolved: n.resolved, label: anchorLabel(n), detached: detachedReason(d, n), anchor: n.anchor,
+      })),
+    };
     this.panel.title = `RTL · ${m.name}`;
     void this.panel.webview.postMessage({
       type: 'view', graph, crumbs, markers: this.store.markersFor(this.top, this.path),
       run: run ? { id: run.runId, status: run.status, dutTop: run.dutTop, testbench: run.testbench, broken: run.broken } : null,
-      findings, sourceMode: d.sourceMode, tops: this.store.tops(), top: this.top,
+      findings, notes, path: this.path, sourceMode: d.sourceMode, tops: this.store.tops(), top: this.top,
       select: this.pendingSelect,
     });
     if (this.pendingSelect?.finding !== undefined) this.sendDetail(this.pendingSelect.finding);
@@ -155,6 +165,22 @@ export class DiagramPanel implements vscode.Disposable {
     } else {
       this.sendDetail(idx);
     }
+  }
+
+  /** Open the view where a note is shown: its pinned instance, else the module under the current top, else any top. */
+  gotoNote(id: string) {
+    const d = this.store.design;
+    const n = this.store.notes.find(x => x.id === id);
+    if (!d || !n) return;
+    const a = n.anchor;
+    if (a.scope && d.modules[a.scope.top]) return this.navigate(a.scope.top, a.scope.instPath, { note: id });
+    const tops = [this.top, ...this.store.tops()].filter((t, i, l) => t && l.indexOf(t) === i);
+    for (const t of tops) {
+      if (t === a.module) return this.navigate(t, [], { note: id });
+      const p = pathsTo(d, t, a.module, 1)[0];
+      if (p) return this.navigate(t, p, { note: id });
+    }
+    if (d.modules[a.module]) this.navigate(a.module, [], { note: id });
   }
 
   private sendDetail(idx: number) {
@@ -246,6 +272,26 @@ export class DiagramPanel implements vscode.Disposable {
         t.sendText(text, false);   // typed, not executed: the user presses Enter
         return;
       }
+      case 'addNote': {
+        const n = await this.store.addNote(m.anchor, m.kind, String(m.text ?? ''));
+        if (!n) vscode.window.showWarningMessage('The note was not saved: it is empty or there is no workspace folder to store it in.');
+        else this.pendingSelect = { note: n.id };
+        return;
+      }
+      case 'updateNote':
+        this.store.updateNote(m.id, { text: m.text, kind: m.kind, resolved: m.resolved });
+        this.pendingSelect = { note: m.id };
+        return;
+      case 'deleteNote': {
+        const n = this.store.notes.find(x => x.id === m.id);
+        if (!n) return;
+        const ok = await vscode.window.showWarningMessage(`Delete this ${n.kind}? It is removed for everyone once the deletion is committed.`, { modal: true }, 'Delete');
+        if (ok === 'Delete') this.store.deleteNote(m.id);
+        return;
+      }
+      case 'gotoNote':
+        this.gotoNote(m.id);
+        return;
       case 'setTheme':
         await this.ctx.workspaceState.update('theme', m.mode);
         this.postTheme();

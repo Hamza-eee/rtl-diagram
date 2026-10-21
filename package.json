@@ -209,6 +209,11 @@
           "default": 6,
           "markdownDescription": "Nets with at least this many loads in a view are drawn as named labels instead of wires. `0` disables."
         },
+        "rtlDiagram.notesFolder": {
+          "type": "string",
+          "default": ".rtl-notes",
+          "markdownDescription": "Folder (in each workspace folder) where diagram notes are stored, one JSON file per note. Commit it to share notes through git."
+        },
         "rtlDiagram.theme": {
           "type": "string",
           "enum": [

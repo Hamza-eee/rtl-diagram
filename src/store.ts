@@ -11,6 +11,10 @@ import { extractModules } from './sv/extract';
 import { Finding, Run, loadRun } from './findings/run';
 import { Resolution, resolveFinding } from './findings/resolve';
 import { ViewMarkers, countAt, dutPrefix, markersFor } from './findings/markers';
+import { execFile } from 'child_process';
+import * as os from 'os';
+import { MAX_NOTE_LENGTH, Note, NoteAnchor, NoteKind, NOTE_KINDS, StoredNote, loadNotes, newNoteId, writeNote } from './notes/notes';
+import * as fs from 'fs';
 
 export class Store implements vscode.Disposable {
   design?: Design;
@@ -21,7 +25,11 @@ export class Store implements vscode.Disposable {
   scanning = false;
   lastError?: string;
 
-  private readonly _onDidChange = new vscode.EventEmitter<'design' | 'runs' | 'active'>();
+  notes: StoredNote[] = [];
+  noteIssues: string[] = [];
+  private authors = new Map<string, string>();
+
+  private readonly _onDidChange = new vscode.EventEmitter<'design' | 'runs' | 'active' | 'notes'>();
   readonly onDidChange = this._onDidChange.event;
 
   constructor(private ctx: vscode.ExtensionContext) {}
@@ -76,6 +84,75 @@ export class Store implements vscode.Disposable {
     await this.rescanRuns();
     const r = this.runs.find(x => x.dir === dir);
     if (r) this.setActive(r);
+  }
+
+  // ---------------------------------------------------------------- notes
+
+  notesFolderName(): string { return this.cfg().get('notesFolder', '.rtl-notes'); }
+
+  notesDirs(): string[] {
+    return (vscode.workspace.workspaceFolders ?? []).map(f => path.join(f.uri.fsPath, this.notesFolderName()));
+  }
+
+  reloadNotes() {
+    const r = loadNotes(this.notesDirs());
+    this.notes = r.notes;
+    this.noteIssues = r.issues;
+    this._onDidChange.fire('notes');
+  }
+
+  /** Notes go in the workspace folder that holds the module's source, so they sit with that repo. */
+  private notesDirFor(module: string): string | undefined {
+    const file = this.design?.modules[module]?.file;
+    const folder = (file && vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))) ?? vscode.workspace.workspaceFolders?.[0];
+    return folder ? path.join(folder.uri.fsPath, this.notesFolderName()) : undefined;
+  }
+
+  /** Author name: git user.name of that repo, else the OS user. */
+  private author(dir: string): Promise<string> {
+    const cached = this.authors.get(dir);
+    if (cached) return Promise.resolve(cached);
+    return new Promise(resolve => {
+      execFile('git', ['config', 'user.name'], { cwd: path.dirname(dir), timeout: 3000 }, (err, out) => {
+        const name = (!err && out.trim()) || os.userInfo().username;
+        this.authors.set(dir, name);
+        resolve(name);
+      });
+    });
+  }
+
+  async addNote(anchor: NoteAnchor, kind: NoteKind, text: string): Promise<Note | undefined> {
+    const dir = this.notesDirFor(anchor.module);
+    const body = text.trim().slice(0, MAX_NOTE_LENGTH);
+    if (!dir || !body || !NOTE_KINDS.includes(kind)) return undefined;
+    const note: Note = {
+      schema: 1, id: newNoteId(), kind, text: body, author: await this.author(dir),
+      created: new Date().toISOString(), resolved: false, anchor,
+    };
+    writeNote(dir, note);
+    this.reloadNotes();
+    return note;
+  }
+
+  updateNote(id: string, patch: { text?: string; kind?: NoteKind; resolved?: boolean }) {
+    const n = this.notes.find(x => x.id === id);
+    if (!n) return;
+    const next: Note = {
+      ...n,
+      text: patch.text !== undefined ? patch.text.trim().slice(0, MAX_NOTE_LENGTH) || n.text : n.text,
+      kind: patch.kind && NOTE_KINDS.includes(patch.kind) ? patch.kind : n.kind,
+      resolved: patch.resolved ?? n.resolved,
+      updated: new Date().toISOString(),
+    };
+    writeNote(path.dirname(n.file), next);
+    this.reloadNotes();
+  }
+
+  deleteNote(id: string) {
+    const n = this.notes.find(x => x.id === id);
+    if (!n) return;
+    try { fs.unlinkSync(n.file); } catch { /* already gone */ }
+    this.reloadNotes();
   }
 
   async rescanRuns(): Promise<void> {

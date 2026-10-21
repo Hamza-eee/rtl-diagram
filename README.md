@@ -34,6 +34,16 @@ Testbench folders (`tb/`, `dv/`, `test/`, `sim/`) are excluded by default throug
 - Click a run to show its findings. Each flagged port gets a probe tagged with the rule ID, and the blocks above it get a count badge. The side panel shows the full finding: message, signal values, test and seed, the reproduce command, the requirement text, and links to the declaration, the drivers, and the testbench line that detected it.
 - Findings also appear in the Problems panel, on the port declaration.
 
+### Notes
+
+Designers and verification engineers can leave notes on the diagram for each other:
+
+- Right-click a port, pin, wire, block or empty space and choose **Add note**. Pick **Note**, **Question** or **Issue**, and optionally **Only this instance**.
+- A note on a module's port shows wherever that module is used, unless it is pinned to one instance.
+- Notes appear as speech bubbles. Click one to open the **Notes** tab, where you can edit, resolve, reopen or delete notes, and jump to them.
+- Each note is a small JSON file in `.rtl-notes/` (setting `rtlDiagram.notesFolder`) in the workspace folder that holds the module. Commit the folder to share notes; one file per note means two people adding notes never conflict.
+- A note whose port or instance disappears from the RTL is listed as **Detached**, with the reason, instead of being lost.
+
 ### What is drawn
 
 | Element | Meaning |
@@ -61,6 +71,7 @@ A net is drawn only if the module declares it as a port, net or variable. Parame
 | `rtlDiagram.runsGlob` | `**/reports/*/run.json` | where runs are found |
 | `rtlDiagram.netLabels.pattern` | clocks and resets | regex for nets drawn as labels instead of wires |
 | `rtlDiagram.netLabels.minLoads` | `6` | nets with at least this many loads are drawn as labels |
+| `rtlDiagram.notesFolder` | `.rtl-notes` | where notes are stored |
 | `rtlDiagram.theme` | `auto` | `auto` follows VS Code; the toolbar button cycles Auto / Light / Dark |
 | `rtlDiagram.colors.*` | theme | block, wire, error, warning, note colours, and `portGroups` (prefix → colour) |
 

@@ -11,10 +11,19 @@ interface Marker { f: number; level: Level; role: 'primary' | 'context' | 'drive
 interface Markers { pins: Record<string, Marker[]>; nodes: Record<string, { error: number; warning: number; note: number; inside: boolean }>; nets: Record<string, Marker[]>; byModule: boolean }
 interface FindingRow { index: number; ruleId: string; level: Level; message: string; signal: string; module?: string; resolved: boolean; here: boolean }
 interface Crumb { label: string; sub: string; path: string[] }
+type NoteKind = 'note' | 'question' | 'issue';
+type NoteTarget = { type: 'module' } | { type: 'port'; name: string } | { type: 'net'; name: string };
+interface NoteAnchor { module: string; target: NoteTarget; scope?: { top: string; instPath: string[] } }
+interface NoteView {
+  id: string; kind: NoteKind; text: string; author: string; created: string; updated?: string;
+  resolved: boolean; label: string; detached?: string; anchor: NoteAnchor;
+}
+interface NoteMark { ids: string[]; kind: NoteKind; resolved: boolean; inside: boolean }
+interface NotesMsg { marks: Record<string, NoteMark>; here: string[]; all: NoteView[]; issues: string[] }
 interface ViewMsg {
-  graph: ViewGraph; crumbs: Crumb[]; markers: Markers; findings: FindingRow[];
+  graph: ViewGraph; crumbs: Crumb[]; markers: Markers; findings: FindingRow[]; notes: NotesMsg; path: string[];
   run: { id: string; status: string; dutTop: string; testbench: string; broken: boolean } | null;
-  sourceMode: string; tops: string[]; top: string; select?: { finding?: number; node?: string };
+  sourceMode: string; tops: string[]; top: string; select?: { finding?: number; node?: string; note?: string };
 }
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -26,7 +35,11 @@ let T = { x: 0, y: 0, k: 1 };
 let selection: { kind: 'node' | 'pin' | 'net'; id: string } | null = null;
 let activeFinding: number | null = null;
 let detail: any = null;
-let tab: 'findings' | 'details' = 'findings';
+let tab: 'findings' | 'notes' | 'details' = 'findings';
+/** A note being written: where it goes, and the form state (kept across re-renders). */
+let draft: { anchor: NoteAnchor; label: string; scope: { top: string; instPath: string[] } | null; kind: NoteKind; text: string; onlyHere: boolean } | null = null;
+let editing: { id: string; text: string; kind: NoteKind } | null = null;
+let focusNotes: string[] = [];
 let drawerOpen = true;
 let themeMode: 'auto' | 'light' | 'dark' = 'auto';
 let portGroupColors: Record<string, string> = {};
@@ -116,14 +129,17 @@ const world = s('g', { class: 'world' });
 const gEdges = s('g', { class: 'edges' });
 const gNodes = s('g', { class: 'nodes' });
 const gMarks = s('g', { class: 'marks' });
-world.append(gridRect, gEdges, gNodes, gMarks);
+const gNotes = s('g', { class: 'notes-layer' });
+world.append(gridRect, gEdges, gNodes, gMarks, gNotes);
 svg.append(defs, world);
 const tooltip = h('div', { class: 'tip', role: 'tooltip', hidden: true });
 const minimap = h('div', { class: 'minimap', title: 'Overview: drag to move' });
 const miniSvg = s('svg', { class: 'mini' });
 minimap.append(miniSvg);
 const overlay = h('div', { class: 'overlay', hidden: true });
-stage.append(svg, tooltip, minimap, overlay);
+const moduleNotesChip = h('button', { class: 'module-notes', hidden: true });
+const ctxMenu = h('div', { class: 'ctxmenu', role: 'menu', hidden: true });
+stage.append(svg, tooltip, minimap, moduleNotesChip, ctxMenu, overlay);
 
 const drawer = h('aside', { class: 'drawer', 'aria-label': 'Findings and details' });
 const statusEl = h('footer', { class: 'status' });
@@ -259,12 +275,13 @@ function render(msg: ViewMsg) {
     (pinEdges.get(e.to) ?? pinEdges.set(e.to, []).get(e.to)!).push(e.id);
   }
   overlay.hidden = true;
-  gEdges.replaceChildren(); gNodes.replaceChildren(); gMarks.replaceChildren();
+  gEdges.replaceChildren(); gNodes.replaceChildren(); gMarks.replaceChildren(); gNotes.replaceChildren();
   edgeEls = new Map();
   for (const e of g.edges) drawEdge(e, msg.markers);
   drawJunctions(g);
   for (const n of g.nodes) drawNode(n, msg.markers);
   drawMarkers(msg);
+  drawNotes(msg);
   svg.setAttribute('aria-label', `Block diagram of ${g.module}: ${g.stats.instances} instances, ${g.stats.ports} ports`);
   renderCrumbs();
   renderStatus();
@@ -279,6 +296,9 @@ function render(msg: ViewMsg) {
     focusFinding(msg.select.finding);
   } else if (msg.select?.node) {
     select({ kind: 'node', id: msg.select.node });
+  } else if (msg.select?.note) {
+    openNotes([msg.select.note], true);
+    return;
   }
   renderDrawer();
 }
@@ -734,13 +754,21 @@ function renderDrawer() {
   const tabs = h('div', { class: 'tabs', role: 'tablist' },
     h('button', { role: 'tab', class: tab === 'findings' ? 'on' : '', 'aria-selected': tab === 'findings', onclick: () => { tab = 'findings'; renderDrawer(); } },
       'Findings', view?.findings.length ? h('span', { class: 'count' }, String(view.findings.length)) : null),
+    h('button', { role: 'tab', class: tab === 'notes' ? 'on' : '', 'aria-selected': tab === 'notes', onclick: () => { tab = 'notes'; renderDrawer(); } },
+      'Notes', view?.notes.here.length ? h('span', { class: 'count' }, String(view.notes.here.length)) : null),
     h('button', { role: 'tab', class: tab === 'details' ? 'on' : '', 'aria-selected': tab === 'details', onclick: () => { tab = 'details'; renderDrawer(); } }, 'Details'),
   );
   const content = h('div', { class: 'drawer-body', role: 'tabpanel' });
+  const hadFocus = document.activeElement?.classList.contains('note-input');
   if (tab === 'findings') content.append(findingsList());
+  else if (tab === 'notes') content.append(notesPanel());
   else if (activeFinding !== null) content.append(detail && detail.index === activeFinding ? findingCard(detail) : h('p', { class: 'muted pad' }, 'Loading finding…'));
   else content.append(selectionCard());
   drawer.replaceChildren(runHeader(), tabs, content);
+  if (hadFocus) {
+    const ta = drawer.querySelector<HTMLTextAreaElement>('.note-input');
+    if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+  }
 }
 
 function runHeader() {
@@ -934,6 +962,242 @@ function findingCard(f: any) {
       kv('classification', props.classification ?? '–'), kv('status', props.triage_status ?? '–'),
       kv('bug', props.bug_id ?? '–'), kv('fingerprint', h('span', { class: 'mono' }, f.fingerprint || '–')))));
   return card;
+}
+
+// ---------------------------------------------------------------- notes
+
+const KIND_LABEL: Record<NoteKind, string> = { note: 'Note', question: 'Question', issue: 'Issue' };
+
+/** Speech-bubble glyph with an optional count. */
+function bubble(x: number, y: number, m: NoteMark, key: string) {
+  const g = s('g', { class: `nb kind-${m.kind}${m.resolved ? ' resolved' : ''}`, 'data-notes': key, role: 'button', tabindex: 0,
+    'aria-label': `${m.ids.length} ${m.ids.length === 1 ? 'note' : 'notes'}` });
+  const w = m.ids.length > 1 ? 22 : 16;
+  g.append(s('path', { d: `M${x} ${y}h${w}a3 3 0 0 1 3 3v7a3 3 0 0 1 -3 3h-${w - 7}l-4 4v-4h-${3}a3 3 0 0 1 -3 -3v-7a3 3 0 0 1 3 -3z`, class: 'nb-shape' }));
+  if (m.ids.length > 1) g.append(text(x + w / 2 + 1, y + 9.5, String(m.ids.length), 'nb-t', 'middle'));
+  else g.append(s('path', { d: `M${x + 4} ${y + 5}h9M${x + 4} ${y + 8.5}h6`, class: 'nb-lines' }));
+  const open = (ev: Event) => { ev.stopPropagation(); openNotes(m.ids, false); };
+  g.addEventListener('click', open);
+  g.addEventListener('keydown', ev => { if ((ev as KeyboardEvent).key === 'Enter') open(ev); });
+  g.addEventListener('pointermove', ev => {
+    const notes = m.ids.map(id => view?.notes.all.find(n => n.id === id)).filter(Boolean) as NoteView[];
+    showTip(ev, h('div', {}, ...notes.slice(0, 3).map(n => h('div', { class: 'tip-note' },
+      h('span', { class: `chip kind-${n.kind}` }, KIND_LABEL[n.kind]), ' ', n.text.length > 120 ? n.text.slice(0, 119) + '…' : n.text)),
+      notes.length > 3 ? h('div', { class: 'tip-hint' }, `+${notes.length - 3} more`) : null,
+      h('div', { class: 'tip-hint' }, 'Click to open in the Notes panel')));
+  });
+  g.addEventListener('pointerleave', hideTip);
+  gNotes.append(g);
+}
+
+function drawNotes(msg: ViewMsg) {
+  moduleNotesChip.hidden = true;
+  for (const [key, m] of Object.entries(msg.notes.marks)) {
+    if (key === 'module') {
+      moduleNotesChip.hidden = false;
+      moduleNotesChip.className = `module-notes kind-${m.kind}${m.resolved ? ' resolved' : ''}`;
+      moduleNotesChip.textContent = `${m.ids.length} ${m.ids.length === 1 ? 'note' : 'notes'} on ${msg.graph.module}`;
+      moduleNotesChip.onclick = () => openNotes(m.ids, false);
+      continue;
+    }
+    if (key.startsWith('net:')) {
+      const net = key.slice(4);
+      const e = msg.graph.edges.find(x => x.net === net);
+      if (e && e.points.length >= 2) {
+        let best = 0, len = -1;
+        for (let i = 0; i + 1 < e.points.length; i++) {
+          const l = Math.hypot(e.points[i + 1][0] - e.points[i][0], e.points[i + 1][1] - e.points[i][1]);
+          if (l > len) { len = l; best = i; }
+        }
+        const [a, b] = [e.points[best], e.points[best + 1]];
+        bubble((a[0] + b[0]) / 2 - 8, (a[1] + b[1]) / 2 - 20, m, key);
+      } else {
+        const pid = msg.graph.labels?.[net]?.[0];
+        const pp = pid ? pinById.get(pid) : undefined;
+        if (pp) bubble(pp.pin.x + (pp.pin.side === 'E' ? 10 : -26), pp.pin.y - 22, m, key);
+      }
+      continue;
+    }
+    const pp = pinById.get(key);
+    if (pp && pp.node.kind === 'inst') {
+      const out = pp.pin.side === 'E' ? 1 : -1;
+      bubble(pp.pin.x + (out > 0 ? 12 : -28), pp.pin.y - 21, m, key);
+      continue;
+    }
+    const nodeId = key.endsWith('/p') ? key.slice(0, -2) : key;
+    const n = nodeById.get(nodeId);
+    // Blocks: top-left corner. Port terminals: beside the arrow on the outer side, clear of finding tags above.
+    if (n) {
+      if (n.kind === 'inst') bubble(n.x + 6, n.y - 19, m, key);
+      else if (n.kind === 'in') bubble(n.x - 24, n.y + n.h / 2 - 9, m, key);
+      else bubble(n.x + n.w + 5, n.y + n.h / 2 - 9, m, key);
+    }
+  }
+}
+
+function openNotes(ids: string[], center: boolean) {
+  focusNotes = ids;
+  tab = 'notes';
+  if (!drawerOpen) { drawerOpen = true; body.classList.remove('drawer-closed'); persist(); }
+  renderDrawer();
+  drawer.querySelector('.note.focus')?.scrollIntoView({ block: 'nearest' });
+  if (center && view) {
+    const key = Object.entries(view.notes.marks).find(([, m]) => ids.some(id => m.ids.includes(id)))?.[0];
+    const el = key ? gNotes.querySelector(`[data-notes="${CSS.escape(key)}"]`) as SVGGraphicsElement | null : null;
+    if (el) { const b = el.getBBox(); centerOn(b.x + b.width / 2, b.y + b.height / 2); }
+  }
+}
+
+/** What a right-click points at, as a note anchor. Instances below the view can be pinned with "only this instance". */
+function anchorAt(target: Element): { anchor: NoteAnchor; label: string; scope: { top: string; instPath: string[] } | null } | null {
+  if (!view) return null;
+  const mod = view.graph.module;
+  const cur = view.path;
+  const here = cur.length ? { top: view.top, instPath: cur } : null;
+  const pinEl = target.closest('[data-pin]');
+  const netEl = target.closest('.edge, .netlabel, .junction');
+  const nodeEl = target.closest('.node');
+  if (pinEl) {
+    const pp = pinById.get(pinEl.getAttribute('data-pin')!);
+    if (!pp) return null;
+    const { pin, node } = pp;
+    if (node.kind === 'inst') {
+      if (node.missing || !node.sub) return null;
+      return { anchor: { module: node.sub, target: { type: 'port', name: pin.name } }, label: `${node.sub}.${pin.name} (${node.label})`, scope: { top: view.top, instPath: [...cur, node.key!] } };
+    }
+    if (node.kind === 'logic') return { anchor: { module: mod, target: { type: 'net', name: pin.name } }, label: `net ${pin.name} in ${mod}`, scope: here };
+    return { anchor: { module: mod, target: { type: 'port', name: pin.name } }, label: `${mod}.${pin.name}`, scope: here };
+  }
+  if (netEl) {
+    const net = netEl.getAttribute('data-net')!;
+    return { anchor: { module: mod, target: { type: 'net', name: net } }, label: `net ${net} in ${mod}`, scope: here };
+  }
+  if (nodeEl) {
+    const n = nodeById.get(nodeEl.getAttribute('data-id')!);
+    if (n?.kind === 'inst') {
+      if (n.missing || !n.sub) return null;
+      return { anchor: { module: n.sub, target: { type: 'module' } }, label: `${n.sub} (${n.label})`, scope: { top: view.top, instPath: [...cur, n.key!] } };
+    }
+  }
+  return { anchor: { module: mod, target: { type: 'module' } }, label: mod, scope: here };
+}
+
+function startNote(a: NonNullable<ReturnType<typeof anchorAt>>) {
+  draft = { ...a, kind: 'note', text: '', onlyHere: false };
+  editing = null;
+  focusNotes = [];
+  tab = 'notes';
+  if (!drawerOpen) { drawerOpen = true; body.classList.remove('drawer-closed'); persist(); }
+  renderDrawer();
+  drawer.querySelector<HTMLTextAreaElement>('.note-input')?.focus();
+}
+
+stage.addEventListener('contextmenu', e => {
+  if (!view || (e.target as Element).closest('.minimap')) return;
+  e.preventDefault();
+  hideTip();
+  const a = anchorAt(e.target as Element);
+  const items: HTMLElement[] = [];
+  if (a) items.push(h('button', { role: 'menuitem', onclick: () => { hideMenu(); startNote(a); } }, `Add note on ${a.label}…`));
+  else items.push(h('div', { class: 'ctx-none' }, 'Notes need the module to be in the parsed sources'));
+  ctxMenu.replaceChildren(...items);
+  ctxMenu.hidden = false;
+  const b = stage.getBoundingClientRect();
+  const x = Math.min(e.clientX - b.left, b.width - ctxMenu.offsetWidth - 8);
+  const y = Math.min(e.clientY - b.top, b.height - ctxMenu.offsetHeight - 8);
+  ctxMenu.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(4, y)}px)`;
+  (ctxMenu.querySelector('button') as HTMLButtonElement | null)?.focus();
+});
+function hideMenu() { ctxMenu.hidden = true; }
+window.addEventListener('pointerdown', e => { if (!ctxMenu.hidden && !(e.target as Element).closest('.ctxmenu')) hideMenu(); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && !ctxMenu.hidden) hideMenu(); });
+
+function kindPicker(value: NoteKind, onChange: (k: NoteKind) => void) {
+  return h('div', { class: 'kinds', role: 'radiogroup', 'aria-label': 'Kind' },
+    ...(['note', 'question', 'issue'] as NoteKind[]).map(k => h('button', {
+      role: 'radio', 'aria-checked': k === value, class: `kind-btn kind-${k}${k === value ? ' on' : ''}`,
+      onclick: () => onChange(k),
+    }, KIND_LABEL[k])));
+}
+
+function noteForm() {
+  const d = draft!;
+  const save = () => {
+    if (!d.text.trim()) return;
+    const anchor: NoteAnchor = { ...d.anchor, ...(d.onlyHere && d.scope ? { scope: d.scope } : {}) };
+    vscode.postMessage({ type: 'addNote', anchor, kind: d.kind, text: d.text });
+    draft = null;
+    renderDrawer();
+  };
+  const ta = h('textarea', { class: 'note-input', rows: 4, placeholder: d.kind === 'question' ? 'What would you like to ask?' : d.kind === 'issue' ? 'What looks wrong, and where did you see it?' : 'Write a note', 'aria-label': 'Note text' }) as HTMLTextAreaElement;
+  ta.value = d.text;
+  ta.addEventListener('input', () => { d.text = ta.value; (form.querySelector('.act.primary') as HTMLButtonElement).disabled = !ta.value.trim(); });
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') { draft = null; renderDrawer(); } });
+  const form = h('div', { class: 'note-form' },
+    h('div', { class: 'nf-title' }, 'New note on ', h('span', { class: 'mono' }, d.label)),
+    kindPicker(d.kind, k => { d.kind = k; renderDrawer(); }),
+    ta,
+    d.scope ? h('label', { class: 'nf-scope' },
+      h('input', { type: 'checkbox', checked: d.onlyHere, onchange: (e: Event) => { d.onlyHere = (e.target as HTMLInputElement).checked; } }),
+      h('span', {}, 'Only this instance ', h('span', { class: 'mono muted' }, [d.scope.top, ...d.scope.instPath].join('.')))) : null,
+    h('div', { class: 'actions' },
+      h('button', { class: 'act primary', disabled: !d.text.trim(), onclick: save }, 'Add note'),
+      h('button', { class: 'act', onclick: () => { draft = null; renderDrawer(); } }, 'Cancel'),
+      h('span', { class: 'muted small' }, '⌘/Ctrl+Enter')));
+  return form;
+}
+
+function noteCard(n: NoteView) {
+  const isEditing = editing?.id === n.id;
+  const when = new Date(n.updated ?? n.created);
+  const card = h('article', { class: `note kind-${n.kind}${n.resolved ? ' resolved' : ''}${focusNotes.includes(n.id) ? ' focus' : ''}`, 'data-note': n.id });
+  card.append(h('div', { class: 'note-head' },
+    h('span', { class: `chip kind-${n.kind}` }, KIND_LABEL[n.kind]),
+    h('button', { class: 'link mono note-where', title: 'Show on the diagram', onclick: () => vscode.postMessage({ type: 'gotoNote', id: n.id }) }, n.label),
+    n.resolved ? h('span', { class: 'muted small' }, 'resolved') : null));
+  if (n.detached) card.append(h('p', { class: 'warn small' }, `Detached: ${n.detached}.`));
+  if (isEditing) {
+    const ta = h('textarea', { class: 'note-input', rows: 4, 'aria-label': 'Edit note' }) as HTMLTextAreaElement;
+    ta.value = editing!.text;
+    ta.addEventListener('input', () => { editing!.text = ta.value; });
+    const commit = () => { vscode.postMessage({ type: 'updateNote', id: n.id, text: editing!.text, kind: editing!.kind }); editing = null; renderDrawer(); };
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit(); if (e.key === 'Escape') { editing = null; renderDrawer(); } });
+    card.append(kindPicker(editing!.kind, k => { editing!.kind = k; renderDrawer(); }), ta,
+      h('div', { class: 'actions' }, h('button', { class: 'act primary', onclick: commit }, 'Save'), h('button', { class: 'act', onclick: () => { editing = null; renderDrawer(); } }, 'Cancel')));
+  } else {
+    card.append(h('p', { class: 'note-text' }, n.text));
+  }
+  card.append(h('div', { class: 'note-meta' },
+    h('span', { class: 'muted small' }, `${n.author} · ${when.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}${n.updated ? ' (edited)' : ''}`),
+    isEditing ? null : h('span', { class: 'note-actions' },
+      h('button', { class: 'link small', onclick: () => { editing = { id: n.id, text: n.text, kind: n.kind }; draft = null; renderDrawer(); } }, 'Edit'),
+      h('button', { class: 'link small', onclick: () => vscode.postMessage({ type: 'updateNote', id: n.id, resolved: !n.resolved }) }, n.resolved ? 'Reopen' : 'Resolve'),
+      h('button', { class: 'link small danger', onclick: () => vscode.postMessage({ type: 'deleteNote', id: n.id }) }, 'Delete'))));
+  return card;
+}
+
+function notesPanel() {
+  const wrap = h('div', { class: 'notes-panel' });
+  if (draft) wrap.append(noteForm());
+  const all = view?.notes.all ?? [];
+  const here = new Set(view?.notes.here ?? []);
+  const order = (a: NoteView, b: NoteView) => Number(a.resolved) - Number(b.resolved) || b.created.localeCompare(a.created);
+  const groups: [string, NoteView[]][] = [
+    ['In this view', all.filter(n => here.has(n.id) || focusNotes.includes(n.id)).sort(order)],
+    ['Elsewhere in the design', all.filter(n => !here.has(n.id) && !focusNotes.includes(n.id) && !n.detached).sort(order)],
+    ['Detached', all.filter(n => !here.has(n.id) && !focusNotes.includes(n.id) && n.detached).sort(order)],
+  ];
+  if (!all.length && !draft) {
+    wrap.append(h('div', { class: 'pad' },
+      h('p', {}, 'No notes yet.'),
+      h('p', { class: 'muted' }, 'Right-click a port, wire, block or empty space and choose Add note. Notes are saved as files in the .rtl-notes folder; commit them to share with the team.')));
+  }
+  for (const [title, list] of groups) {
+    if (!list.length) continue;
+    wrap.append(h('div', { class: 'fgroup' }, title), ...list.map(noteCard));
+  }
+  for (const i of view?.notes.issues ?? []) wrap.append(h('p', { class: 'warn small pad' }, i));
+  return wrap;
 }
 
 // ---------------------------------------------------------------- messages
