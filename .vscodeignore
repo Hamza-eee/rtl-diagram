@@ -8,3 +8,5 @@ dist/test/**
 **/*.map
 esbuild.mjs
 tsconfig.json
+scripts/**
+.gitignore
