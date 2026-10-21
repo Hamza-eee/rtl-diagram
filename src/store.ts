@@ -15,6 +15,7 @@ import { execFile } from 'child_process';
 import * as os from 'os';
 import { MAX_NOTE_LENGTH, Note, NoteAnchor, NoteKind, NOTE_KINDS, StoredNote, loadNotes, newNoteId, writeNote } from './notes/notes';
 import * as fs from 'fs';
+import { Serial } from './util/serial';
 
 export class Store implements vscode.Disposable {
   design?: Design;
@@ -38,7 +39,14 @@ export class Store implements vscode.Disposable {
 
   cfg() { return vscode.workspace.getConfiguration('rtlDiagram'); }
 
-  async rescanDesign(): Promise<void> {
+  private designScans = new Serial();
+  private runScans = new Serial();
+
+  rescanDesign(): Promise<void> {
+    return this.designScans.run(() => this.scanDesignOnce());
+  }
+
+  private async scanDesignOnce(): Promise<void> {
     const roots = (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
     const c = this.cfg();
     this.scanning = true;
@@ -155,7 +163,11 @@ export class Store implements vscode.Disposable {
     this.reloadNotes();
   }
 
-  async rescanRuns(): Promise<void> {
+  rescanRuns(): Promise<void> {
+    return this.runScans.run(() => this.scanRunsOnce());
+  }
+
+  private async scanRunsOnce(): Promise<void> {
     const glob = this.cfg().get('runsGlob', '**/reports/*/run.json');
     const uris = await vscode.workspace.findFiles(glob, '**/{node_modules,.git,venv,.venv}/**', 500);
     const dirs = new Set([...uris.map(u => path.dirname(u.fsPath)), ...this.extraRunDirs()]);
