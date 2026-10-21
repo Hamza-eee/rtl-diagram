@@ -349,14 +349,14 @@ function drawNode(n: VNode, mk: Markers) {
     for (const p of n.pins) drawPin(g, n, p);
   } else {
     // Hierarchical port terminal (schematic flag shape).
-    const pts = n.kind === 'in'
-      ? `${x},${y} ${x + w - 10},${y} ${x + w},${y + hh / 2} ${x + w - 10},${y + hh} ${x},${y + hh}`
-      : n.kind === 'out'
-        ? `${x},${y + hh / 2} ${x + 10},${y} ${x + w},${y} ${x + w},${y + hh} ${x + 10},${y + hh}`
-        : `${x},${y + hh / 2} ${x + 10},${y} ${x + w - 10},${y} ${x + w},${y + hh / 2} ${x + w - 10},${y + hh} ${x + 10},${y + hh}`;
+    // Schematic convention: inputs sit on the left pointing into the module, outputs on the
+    // right pointing out of it (both point rightward), inouts point both ways.
+    const pts = n.kind === 'inout'
+      ? `${x},${y + hh / 2} ${x + 10},${y} ${x + w - 10},${y} ${x + w},${y + hh / 2} ${x + w - 10},${y + hh} ${x + 10},${y + hh}`
+      : `${x},${y} ${x + w - 10},${y} ${x + w},${y + hh / 2} ${x + w - 10},${y + hh} ${x},${y + hh}`;
     const p = n.pins[0];
     g.append(s('polygon', { points: pts, class: 'term', ...pinColorAttr(n.label) }));
-    g.append(text(n.kind === 'in' ? x + 8 : x + 14, y + hh / 2 + 4, n.label, 'term-label'));
+    g.append(text(n.kind === 'inout' ? x + 14 : x + 8, y + hh / 2 + 4, n.label, 'term-label'));
     if (p) g.setAttribute('data-pin', p.id);
     if (p?.netLabels?.length) {
       // The terminal already names the net: a short stub with an open end marks "connects by label".
@@ -404,6 +404,11 @@ function drawPin(g: SVGGElement, n: VNode, p: VPin) {
   const out = p.side === 'E' ? 1 : -1;
   const pg = s('g', { class: `pin ${tier(p.width)}${p.open ? ' open' : ''}${p.tie ? ' tie' : ''}`, 'data-pin': p.id, ...pinColorAttr(p.name) });
   pg.append(s('line', { x1: p.x, y1: p.y, x2: p.x + out * 9, y2: p.y, class: 'stub' }));
+  // Direction arrowhead on the stub: into the block for inputs, out of it for outputs, both for inouts.
+  const head = (tip: number, back: number) => s('path', { d: `M${tip} ${p.y}L${back} ${p.y - 3.2}L${back} ${p.y + 3.2}Z`, class: 'pin-arrow' });
+  if (p.dir === 'input') pg.append(head(p.x, p.x + out * 6));
+  else if (p.dir === 'output') pg.append(head(p.x + out * 8, p.x + out * 2));
+  else if (p.dir === 'inout') pg.append(head(p.x, p.x + out * 4.5), head(p.x + out * 9, p.x + out * 4.5));
   pg.append(s('rect', { x: p.side === 'E' ? p.x - 70 : p.x, y: p.y - 8, width: 70, height: 16, class: 'pin-hit' }));
   pg.append(text(p.x - out * 7, p.y + 4, p.name, 'pin-label', p.side === 'E' ? 'end' : 'start'));
   if (p.netLabels?.length) {

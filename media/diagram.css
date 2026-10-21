@@ -151,6 +151,9 @@ button { font: inherit; color: inherit; }
 .pin.t2 .stub { stroke-width: 2.4; }
 .pin.t3 .stub { stroke-width: 3.6; }
 .pin-label { font: 11px var(--mono); fill: var(--text); pointer-events: none; }
+.pin-arrow { fill: var(--pin, var(--stroke)); }
+.pin.sel .pin-arrow { fill: var(--accent); }
+.pin.open .pin-arrow { fill: var(--muted); }
 .pin-hit { fill: transparent; cursor: pointer; }
 .pin:hover .pin-label { fill: var(--accent); }
 .pin.open .pin-label { fill: var(--muted); }

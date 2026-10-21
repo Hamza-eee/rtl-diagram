@@ -38,7 +38,8 @@ Testbench folders (`tb/`, `dv/`, `test/`, `sim/`) are excluded by default throug
 
 | Element | Meaning |
 |---|---|
-| Flag-shaped terminals | the module's own ports (inputs on the left, outputs on the right) |
+| Arrow-shaped terminals | the module's own ports: inputs on the left pointing in, outputs on the right pointing out, inouts double-headed |
+| Arrowheads on pin stubs | the port direction on each instance pin (into the block for inputs, out for outputs) |
 | Block with a notch | a child instance; the module name is under the instance name |
 | Dashed rounded block | the module's own `assign` / `always` logic |
 | Stacked outline | the instance is inside a `generate` construct (the header is shown above it) |
