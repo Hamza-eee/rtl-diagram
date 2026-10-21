@@ -28,7 +28,7 @@ Testbench folders (`tb/`, `dv/`, `test/`, `sim/`) are excluded by default throug
 
 - Open the **RTL Diagram** view in the activity bar. **Hierarchy** lists the top modules and their instances. **Verification runs** lists the run folders it found.
 - Click a module to open the diagram. In the diagram:
-  - Double-click a block to open it. Backspace goes up a level.
+  - Double-click a block to open it. Double-click empty space, or press Backspace, to go up one level.
   - Click a pin or wire to trace the net. Click a block for its parameters and links to its instance and definition.
   - `F` fits the view, `+` and `-` zoom, and `/` finds a block or port.
 - Click a run to show its findings. Each flagged port gets a probe tagged with the rule ID, and the blocks above it get a count badge. The side panel shows the full finding: message, signal values, test and seed, the reproduce command, the requirement text, and links to the declaration, the drivers, and the testbench line that detected it.

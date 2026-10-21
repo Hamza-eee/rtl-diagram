@@ -212,6 +212,10 @@ stage.addEventListener('pointerup', e => {
   swallowClick = !!wasDrag;
   if (!wasDrag && (e.target === svg || e.target === gridRect)) { select(null); }
 });
+// Double-click on empty space goes up one level (the opposite of double-clicking a block).
+stage.addEventListener('dblclick', e => {
+  if (e.target === svg || e.target === gridRect) { e.preventDefault(); goUp(); }
+});
 // A pan that ends over a block must not also select it.
 stage.addEventListener('click', e => { if (swallowClick) { swallowClick = false; e.stopPropagation(); } }, true);
 new ResizeObserver(() => { if (view) drawMiniViewport(); }).observe(stage);
@@ -617,7 +621,7 @@ function renderStatus() {
     h('span', { class: 'st' }, `${g.stats.instances} instance${g.stats.instances === 1 ? '' : 's'} · ${g.stats.ports} ports · ${g.stats.nets} nets`),
     h('span', { class: 'st muted' }, view.sourceMode),
     h('span', { class: 'st-spacer' }),
-    h('span', { class: 'st muted keys' }, 'Double-click a block to open it · Backspace goes up · F fits'),
+    h('span', { class: 'st muted keys' }, 'Double-click a block to open it · double-click empty space or Backspace to go up · F fits'),
   ));
 }
 
@@ -777,7 +781,7 @@ function selectionCard() {
     return h('div', { class: 'pad' },
       h('h2', { class: 'card-title mono' }, g.module),
       h('p', { class: 'muted' }, `${g.stats.instances} instances, ${g.stats.ports} ports, ${g.stats.nets} nets.`),
-      h('p', { class: 'muted' }, 'Select a block, port or wire to see its details. Double-click a block to open it.'),
+      h('p', { class: 'muted' }, 'Select a block, port or wire to see its details. Double-click a block to open it; double-click empty space to go up a level.'),
       h('div', { class: 'legend' },
         legendRow('wire t1', '1 bit'), legendRow('wire t2', '2–8 bits'), legendRow('wire t3', 'more than 8 bits'),
         legendRow('nc', 'port left open'), legendRow('gen', 'inside a generate block')));
