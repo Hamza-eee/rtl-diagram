@@ -16,6 +16,9 @@ It's meant for design and verification engineers working on the same code. Desig
 
 ## Where the RTL comes from
 
+If the workspace holds several projects (for example a parent folder of many repositories), choose one with **RTL Diagram: Choose Project Folder…**, the repo icon on the Hierarchy view, or the status bar. Sources, verification runs and notes are then read from that folder only. The choice is remembered per workspace; `rtlDiagram.projectFolder` sets it explicitly.
+
+
 In `auto` mode, the first of these that exists is used:
 
 1. **Bender.** Every `Bender.yml` in the workspace is read directly: `sources` in order, globs expanded, and `path` dependencies followed. Source groups with a `target:` are included only when the expression holds for `rtlDiagram.benderTargets` (default: none active, so `test`, `simulation` and technology-specific groups are left out). `bender` itself is never run, so nothing is written to your repository. Git dependencies resolve if they are already checked out under `.bender/`.

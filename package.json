@@ -44,7 +44,7 @@
     "viewsWelcome": [
       {
         "view": "rtlDiagram.hierarchy",
-        "contents": "No SystemVerilog modules found yet.\n[Rescan workspace](command:rtlDiagram.refresh)\nSources come from Bender.yml, a .f filelist, or the rtlDiagram.include glob."
+        "contents": "No SystemVerilog modules found yet.\n[Choose project folder](command:rtlDiagram.chooseProject)\n[Rescan](command:rtlDiagram.refresh)\nSources come from Bender.yml, a .f filelist, or the rtlDiagram.include glob."
       },
       {
         "view": "rtlDiagram.runs",
@@ -52,6 +52,12 @@
       }
     ],
     "commands": [
+      {
+        "command": "rtlDiagram.chooseProject",
+        "title": "Choose Project Folder\u2026",
+        "category": "RTL Diagram",
+        "icon": "$(repo)"
+      },
       {
         "command": "rtlDiagram.openDiagram",
         "title": "Open Diagram",
@@ -66,13 +72,13 @@
       },
       {
         "command": "rtlDiagram.openRun",
-        "title": "Open Run Folder…",
+        "title": "Open Run Folder\u2026",
         "category": "RTL Diagram",
         "icon": "$(folder-opened)"
       },
       {
         "command": "rtlDiagram.selectTop",
-        "title": "Choose Top Module…",
+        "title": "Choose Top Module\u2026",
         "category": "RTL Diagram"
       },
       {
@@ -104,6 +110,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "rtlDiagram.chooseProject",
+          "when": "view == rtlDiagram.hierarchy",
+          "group": "navigation@0"
+        },
         {
           "command": "rtlDiagram.openDiagram",
           "when": "view == rtlDiagram.hierarchy",
@@ -143,6 +154,11 @@
     "configuration": {
       "title": "RTL Diagram",
       "properties": {
+        "rtlDiagram.projectFolder": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Folder to read RTL, verification runs and notes from (absolute, or relative to the first workspace folder). Empty: use the folder chosen with **RTL Diagram: Choose Project Folder\u2026**, or the whole workspace."
+        },
         "rtlDiagram.veriblePath": {
           "type": "string",
           "default": "verible-verilog-syntax",
@@ -169,7 +185,9 @@
         },
         "rtlDiagram.benderTargets": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "markdownDescription": "Active Bender targets for source groups with a `target:` expression (e.g. `[\"synthesis\", \"xilinx\"]`). Empty: plain RTL, where `test`, `simulation` and technology-specific groups are left out."
         },

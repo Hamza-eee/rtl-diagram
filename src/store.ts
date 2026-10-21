@@ -47,7 +47,7 @@ export class Store implements vscode.Disposable {
   }
 
   private async scanDesignOnce(): Promise<void> {
-    const roots = (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
+    const roots = this.roots();
     const c = this.cfg();
     this.scanning = true;
     this.lastError = undefined;
@@ -99,8 +99,36 @@ export class Store implements vscode.Disposable {
 
   notesFolderName(): string { return this.cfg().get('notesFolder', '.rtl-notes'); }
 
+  // ---------------------------------------------------------------- project folder
+
+  /** The chosen project folder (setting first, then the per-workspace choice), if it still exists. */
+  project(): string | undefined {
+    const p = this.cfg().get<string>('projectFolder', '') || this.ctx.workspaceState.get<string>('projectFolder');
+    if (!p) return undefined;
+    const abs = path.isAbsolute(p) ? p : path.resolve(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '.', p);
+    return fs.existsSync(abs) ? abs : undefined;
+  }
+
+  /** Folders everything is read from: the project folder if one is chosen, else every workspace folder. */
+  roots(): string[] {
+    const p = this.project();
+    return p ? [p] : (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
+  }
+
+  inScope(file: string): boolean {
+    return this.roots().some(r => !path.relative(r, file).startsWith('..'));
+  }
+
+  async setProject(folder: string | undefined) {
+    await this.ctx.workspaceState.update('projectFolder', folder);
+    await this.ctx.workspaceState.update('view', undefined);
+    this.activeRun = undefined;
+    await Promise.all([this.rescanDesign(), this.rescanRuns()]);
+    this.reloadNotes();
+  }
+
   notesDirs(): string[] {
-    return (vscode.workspace.workspaceFolders ?? []).map(f => path.join(f.uri.fsPath, this.notesFolderName()));
+    return this.roots().map(r => path.join(r, this.notesFolderName()));
   }
 
   reloadNotes() {
@@ -113,8 +141,8 @@ export class Store implements vscode.Disposable {
   /** Notes go in the workspace folder that holds the module's source, so they sit with that repo. */
   private notesDirFor(module: string): string | undefined {
     const file = this.design?.modules[module]?.file;
-    const folder = (file && vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))) ?? vscode.workspace.workspaceFolders?.[0];
-    return folder ? path.join(folder.uri.fsPath, this.notesFolderName()) : undefined;
+    const root = this.roots().find(r => file && !path.relative(r, file).startsWith('..')) ?? this.roots()[0];
+    return root ? path.join(root, this.notesFolderName()) : undefined;
   }
 
   /** Author name: git user.name of that repo, else the OS user. */
@@ -170,7 +198,8 @@ export class Store implements vscode.Disposable {
 
   private async scanRunsOnce(): Promise<void> {
     const glob = this.cfg().get('runsGlob', '**/reports/*/run.json');
-    const uris = await vscode.workspace.findFiles(glob, '**/{node_modules,.git,venv,.venv}/**', 500);
+    const uris = (await Promise.all(this.roots().map(r =>
+      vscode.workspace.findFiles(new vscode.RelativePattern(vscode.Uri.file(r), glob), '**/{node_modules,.git,venv,.venv}/**', 500)))).flat();
     const dirs = new Set([...uris.map(u => path.dirname(u.fsPath)), ...this.extraRunDirs()]);
     const prevActive = this.activeRun?.dir;
     this.runs = [...dirs].map(d => loadRun(d)).sort((a, b) => b.runId.localeCompare(a.runId));
