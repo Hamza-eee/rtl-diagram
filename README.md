@@ -8,7 +8,13 @@
 
 ## Who it is for
 
-RTL Diagram is a VS Code extension. It reads your SystemVerilog and draws each module as a block diagram: its ports, the blocks inside it and the wires between them. Blocks and ports link back to their lines in the source. Here are three ways to use it:
+RTL Diagram is a VS Code extension. It reads your SystemVerilog and draws each module as a block diagram: its ports, the blocks inside it and the wires between them. Blocks and ports link back to their lines in the source. Connectivity comes from [Verible](https://github.com/chipsalliance/verible)'s syntax tree, never from guessing by name, so the same RTL always gives the same diagram.
+
+Here are three ways to use it:
+
+- [RTL designer: draw it as you build](#rtl-designer-draw-it-as-you-build)
+- [Design and verification teams: report bugs in visual context](#design-and-verification-teams-report-bugs-in-visual-context)
+- [Designers with an agentic verification workflow](#designers-with-an-agentic-verification-workflow)
 
 ### RTL designer: draw it as you build
 
@@ -22,20 +28,9 @@ You write RTL with a block diagram already in your head. RTL Diagram draws that 
 
 ![u_timer connected with .*: the clk and rst_n pins marked as unconnected, with the suggested fix in the Issues tab](docs/images/checks.png)
 
-### How test failures get onto the diagram
+### Design and verification teams: report bugs in visual context
 
-The next two sections use verification reports, so here is how they work.
-
-1. You run tests on your design: a regression with a testbench, written for example in cocotb, AVL, Verilator or SystemVerilog/UVM.
-2. A script turns the test results into a **verification report**, automatically. A report is a folder with two JSON files. `run.json` says when the tests ran, on which git commit and for which design module. `findings.sarif` lists every failed check, in [SARIF](https://sarifweb.azurewebsites.net/), a standard format for tool results. Each failed check is called a **finding**. It names the signal where the problem was seen, and carries what was expected and observed, the test name, the random seed, the signal values and the command that reproduces the failure.
-3. The report's format is standardized, so RTL Diagram can present any report that follows it, whichever testbench produced the results. It reads the folder and marks every finding on the port it names.
-
-**What exists today:** the extension reads this format, and the format is [documented](docs/verification-report-format.md), with complete examples in [`test-fixtures/sample-soc`](https://github.com/Hamza-eee/rtl-diagram/tree/main/test-fixtures/sample-soc). Reports can be written by hand, by your own script, or by an AI agent following the format.
-**What is planned:** a report script that creates the reports from cocotb, AVL, Verilator and SystemVerilog/UVM test results, and ready-made instructions for agentic workflows. See the [roadmap](docs/ROADMAP.md#reporting).
-
-### Design and verification teams collaboration: Visual Context Bug reports
-
-When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log.
+When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log. [How reports get onto the diagram](#how-test-failures-get-onto-the-diagram) is explained below.
 
 - **Pass findings back and forth on the design.** Either side can leave a note, a question or an issue on a specific port, wire or block, anchored to the exact spot it refers to. Notes are small files saved in the repository, so the team gets them through git, without merge conflicts. → [Notes](docs/guide/notes.md)
 - **Report a bug with its reproduction.** A finding includes the command that regenerates the failure, so the designer can reproduce it without asking. → [Verification findings](docs/guide/findings.md)
@@ -44,13 +39,25 @@ When design and verification work together, the diagram is common ground. A veri
 
 ### Designers with an agentic verification workflow
 
-For designers leveraing agentic workflows, if you have an agentic harness that you deploy for verification, you can now ask it to report bugs back visually. Instead of bug reports buried in a text log or the codebase, it points to them on the block diagram. The diagram narrows down where to look and takes you straight to the source, so you spend your time on the part that matters. A dedicated script allows your agent to generate the bug reports in the suitable format for this extension.
+If you already deploy an agentic harness for verification, it can report the bugs it finds on the block diagram instead of in a text log. The diagram narrows down where to look and takes you straight to the source, so you spend your time on the part that matters.
 
 - **See each failed check where it was observed.** The finding is marked on its port, with the message, the signal values, the test and the requirement it violates. Blocks above it show a count, so you can find it from the top. → [Verification findings](docs/guide/findings.md)
 - **Go from the symptom to the code that drives it.** Each finding links to the port's declaration and to the statements that drive the signal, as places to look first. They are candidates, not a diagnosis. → [Verification findings](docs/guide/findings.md)
-- **Reproduce the exact failure** with the command each finding carries, as described in [the section above](#rtl-and-verification-engineers-collaborate-on-the-design).
+- **Reproduce the exact failure** with the command each finding carries, as described in [the previous section](#design-and-verification-teams-report-bugs-in-visual-context).
 
-**Status:** showing a report's findings on the diagram works today. The script that enables your verification agent to creates the reports automatically is **(planned)**.
+**Status:** showing a report's findings on the diagram works today, and an agent can already write reports in this extension's format by following its [documentation](docs/verification-report-format.md). The script that creates the reports automatically for your verification agent is **(planned)**.
+
+## How test failures get onto the diagram
+
+The second and third uses above rely on verification reports. Here is how they work.
+
+1. You run tests on your design: a regression with a testbench, written for example in cocotb, AVL, Verilator or SystemVerilog/UVM.
+2. A script turns the test results into a **verification report**, automatically. A report is a folder with two JSON files. `run.json` says when the tests ran, on which git commit and for which design module. `findings.sarif` lists every failed check, in [SARIF](https://sarifweb.azurewebsites.net/), a standard format for tool results. Each failed check is called a **finding**. It names the signal where the problem was seen, and carries what was expected and observed, the test name, the random seed, the signal values and the command that reproduces the failure.
+3. The report's format is standardized, so RTL Diagram can present any report that follows it, whichever testbench produced the results. It reads the folder and marks every finding on the port it names.
+
+**What exists today:** the extension reads this format, and the format is [documented](docs/verification-report-format.md), with complete examples in [`test-fixtures/sample-soc`](https://github.com/Hamza-eee/rtl-diagram/tree/main/test-fixtures/sample-soc). Reports can be written by hand, by your own script, or by an AI agent following the format.
+**What is planned:** a report script that creates the reports from cocotb, AVL, Verilator and SystemVerilog/UVM test results, and ready-made instructions for agentic workflows. See the [roadmap](docs/ROADMAP.md#reporting).
+
 ## Limitations
 
 - **Similar to linting, but not a linter.** The checks cover what stops the RTL from being parsed or connected, not coding-style or other lint rules. For those, use `verible-verilog-lint`, which comes with the Verible install this extension already needs.
@@ -59,8 +66,6 @@ For designers leveraing agentic workflows, if you have an agentic harness that y
 - **Not a synthesis schematic.** It shows modules, instances and the wires between them, not gates.
 
 The full list is in [Troubleshooting and limitations](docs/guide/troubleshooting.md#limitations).
-
-Connectivity comes from [Verible](https://github.com/chipsalliance/verible)'s syntax tree, never from guessing by name, so the same RTL always gives the same diagram!
 
 ## Get started
 
