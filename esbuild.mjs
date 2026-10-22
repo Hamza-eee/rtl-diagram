@@ -2,7 +2,10 @@ import * as esbuild from 'esbuild';
 import { readdirSync } from 'fs';
 
 const watch = process.argv.includes('--watch');
-const common = { bundle: true, sourcemap: true, logLevel: 'info', target: 'es2022' };
+// One stamp per build, compiled into both bundles: the webview compares it with the host's to
+// notice a window still running a previous version after an install (it needs a reload).
+const BUILD = new Date().toISOString();
+const common = { bundle: true, sourcemap: true, logLevel: 'info', target: 'es2022', define: { __BUILD__: JSON.stringify(BUILD) } };
 const tests = readdirSync('test/unit').filter(f => f.endsWith('.test.ts')).map(f => `test/unit/${f}`);
 const integration = readdirSync('test/integration').filter(f => f.endsWith('.ts')).map(f => `test/integration/${f}`);
 

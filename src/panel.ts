@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { Store } from './store';
 import { buildView, DEFAULT_VIEW_OPTIONS, SPACING, Spacing } from './graph';
 import { moduleAtPath } from './elab';
@@ -71,13 +72,15 @@ export class DiagramPanel implements vscode.Disposable {
     const js = w.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview.js'));
     const css = w.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'diagram.css'));
     const nonce = [...Array(24)].map(() => Math.floor(Math.random() * 36).toString(36)).join('');
+    const v = encodeURIComponent(__BUILD__);
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="rtl-build" content="${__BUILD__}">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${w.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${w.cspSource} data:;">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="${css}">
+<link rel="stylesheet" href="${css}?v=${v}">
 <title>RTL Diagram</title></head>
-<body><div id="app"></div><script nonce="${nonce}" src="${js}"></script></body></html>`;
+<body><div id="app"></div><script nonce="${nonce}" src="${js}?v=${v}"></script></body></html>`;
   }
 
   private themeMode(): ThemeMode {
@@ -90,7 +93,7 @@ export class DiagramPanel implements vscode.Disposable {
       type: 'theme', mode: this.themeMode(),
       colors: {
         block: c.get('colors.block', ''), wire: c.get('colors.wire', ''),
-        error: c.get('colors.error', ''), warning: c.get('colors.warning', ''), note: c.get('colors.note', ''),
+        error: c.get('colors.error', ''), warning: c.get('colors.warning', ''), note: c.get('colors.note', ''), issue: c.get('colors.issue', ''),
         portGroups: c.get('colors.portGroups', {}),
       },
     });
@@ -167,10 +170,12 @@ export class DiagramPanel implements vscode.Disposable {
 
   private projectState() {
     const cur = this.store.needsProject() ? undefined : this.store.project();
+    const row = (f: string) => ({ path: f, name: path.basename(f), rel: displayPath(f), current: f === cur });
     return {
-      label: this.store.projectLabel(), needsChoice: this.store.needsProject(), whole: !this.store.needsProject() && !cur,
+      label: this.store.projectLabel(), needsChoice: this.store.needsProject(),
       sources: this.store.design?.sourceMode ?? '',
-      candidates: this.store.candidates.map(f => ({ path: f, name: path.basename(f), rel: vscode.workspace.asRelativePath(f), current: f === cur })),
+      candidates: this.store.candidates.map(row),
+      recent: this.store.recentProjects().map(row),
     };
   }
 
@@ -361,11 +366,14 @@ export class DiagramPanel implements vscode.Disposable {
         await vscode.commands.executeCommand('rtlDiagram.configureSources');
         return;
       case 'setProject': {
-        const f = typeof m.folder === 'string' ? m.folder : undefined;
-        if (f && !this.store.candidates.includes(f)) return;     // only folders the extension found itself
-        await this.store.setProject(m.whole ? undefined : f);
+        // Only folders the extension listed itself: detected projects, or ones opened before with Browse.
+        const f = typeof m.folder === 'string' ? m.folder : '';
+        if (this.store.candidates.includes(f) || this.store.recentProjects().includes(f)) await vscode.commands.executeCommand('rtlDiagram.openProject', f);
         return;
       }
+      case 'browseProject':
+        await vscode.commands.executeCommand('rtlDiagram.browseProject');
+        return;
       case 'openSetting':
         if (typeof m.key === 'string' && m.key.startsWith('rtlDiagram.')) await vscode.commands.executeCommand('workbench.action.openSettings', m.key);
         return;
@@ -378,6 +386,14 @@ export class DiagramPanel implements vscode.Disposable {
         return;
     }
   }
+}
+
+/** A path for display: relative inside the workspace, ~-relative outside it. */
+export function displayPath(f: string): string {
+  const rel = vscode.workspace.asRelativePath(f);
+  if (rel !== f) return rel;
+  const home = os.homedir();
+  return f.startsWith(home + path.sep) ? '~' + f.slice(home.length) : f;
 }
 
 export async function openLoc(l: Loc, preview = true) {

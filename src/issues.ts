@@ -63,7 +63,11 @@ export function collectIssues(d: Design, files: FileErrors[], sourceProblems: st
       for (const m of mods) if (!d.modules[m]) declaredByBroken.set(m, f.file);
     }
     const name = rel(f.file, roots);
-    for (const e of f.errors) {
+    // In a file Verible couldn't recover from, errors after the first are mostly knock-on effects
+    // of it (one missing comma can produce half a dozen), so only the first is listed.
+    const errors = f.parsed ? f.errors : f.errors.slice(0, 1);
+    const more = f.errors.length - errors.length;
+    for (const e of errors) {
       const line = e.line + 1, col = e.column + 1;
       const tok = e.text ? (e.text.length > 24 ? e.text.slice(0, 23) + '…' : e.text) : '';
       out.push({
@@ -72,8 +76,8 @@ export function collectIssues(d: Design, files: FileErrors[], sourceProblems: st
         title: tok ? `near '${tok}'` : `in ${name}`,
         detail: (f.parsed
           ? `Verible recovered, so ${mods.length ? mods.join(', ') : 'this file'} may be drawn incomplete.`
-          : `The file could not be read at all${mods.length ? `, so ${mods.join(', ')} ${mods.length === 1 ? 'is' : 'are'} missing from the diagram` : ''}.`)
-          ,
+          : `The file could not be read at all${mods.length ? `, so ${mods.join(', ')} ${mods.length === 1 ? 'is' : 'are'} missing from the diagram` : ''}.`
+            + (more ? ` Verible reported ${more} more error${more === 1 ? '' : 's'} after this one, usually knock-on effects: fix this one first.` : '')),
         file: f.file, line, col, modules: mods,
       });
     }

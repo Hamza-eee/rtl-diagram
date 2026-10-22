@@ -21,10 +21,8 @@ interface NoteView {
 interface NoteMark { ids: string[]; kind: NoteKind; resolved: boolean; inside: boolean }
 interface NotesMsg { marks: Record<string, NoteMark>; here: string[]; all: NoteView[]; issues: string[] }
 interface LiveState { on: boolean; pending: string[] }
-interface ProjectState {
-  label: string; needsChoice: boolean; whole: boolean; sources: string;
-  candidates: { path: string; name: string; rel: string; current: boolean }[];
-}
+interface ProjectRow { path: string; name: string; rel: string; current: boolean }
+interface ProjectState { label: string; needsChoice: boolean; sources: string; candidates: ProjectRow[]; recent: ProjectRow[] }
 type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'sources';
 interface IssueRow {
   key: string; kind: IssueKind; title: string; detail?: string; modules: string[];
@@ -38,7 +36,7 @@ interface ViewMsg {
     freshness: { state: 'same' | 'changed' | 'unknown'; reason: string; changed: { file: string; rel: string }[] } | null;
   } | null;
   live: LiveState;
-  spacing: 'compact' | 'normal' | 'roomy';
+  spacing: Spacing;
   project: ProjectState;
   issues: IssueRow[];
   issueMarks: IssueMarks;
@@ -131,13 +129,24 @@ const zoomLabel = h('button', { class: 'zoom-label', title: 'Reset to 100% (0)' 
 const themeBtn = h('button', { class: 'tb-btn', title: 'Theme: follow VS Code' }, icon('theme'), h('span', { class: 'tb-btn-label' }, 'Auto'));
 const drawerBtn = h('button', { class: 'tb-btn', title: 'Toggle side panel' }, icon('drawer'));
 const spacingBtn = h('button', { class: 'tb-btn', title: 'Spacing' }, icon('spacing'), h('span', { class: 'tb-btn-label' }, 'Normal'));
+type Spacing = 'compact' | 'normal' | 'roomy';
+const NEXT_SPACING: Record<Spacing, Spacing> = { compact: 'normal', normal: 'roomy', roomy: 'compact' };
+function showSpacing(sp: Spacing) {
+  spacingBtn.querySelector('.tb-btn-label')!.textContent = sp[0].toUpperCase() + sp.slice(1);
+  spacingBtn.title = `Spacing between blocks and wires: ${sp}. Click for ${NEXT_SPACING[sp]}.`;
+}
 spacingBtn.addEventListener('click', () => {
-  const cur = view?.spacing ?? 'normal';
-  const next = cur === 'compact' ? 'normal' : cur === 'normal' ? 'roomy' : 'compact';
+  const next = NEXT_SPACING[view?.spacing ?? 'normal'];
+  if (view) view.spacing = next;
+  showSpacing(next);                       // the label changes now; the new layout follows
   vscode.postMessage({ type: 'setSpacing', spacing: next });
 });
 const liveBtn = h('button', { class: 'tb-btn live-btn', 'aria-pressed': 'true' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), h('span', { class: 'tb-btn-label' }, 'Live'));
-liveBtn.addEventListener('click', () => vscode.postMessage({ type: 'setLive', on: !live.on }));
+liveBtn.addEventListener('click', () => {
+  live = { ...live, on: !live.on };
+  renderLive();
+  vscode.postMessage({ type: 'setLive', on: live.on });
+});
 const upBtn = h('button', { class: 'tb-btn', title: 'Up one level (Backspace)' }, icon('up'));
 toolbar.append(
   upBtn, crumbsEl,
@@ -174,8 +183,15 @@ const moduleIssuesChip = h('button', { class: 'module-issues', hidden: true });
 const stageChips = h('div', { class: 'stage-chips' }, moduleNotesChip, moduleIssuesChip);
 const projMenu = h('div', { class: 'proj-menu', role: 'menu', hidden: true });
 const pendingBanner = h('div', { class: 'pending-banner', role: 'status', hidden: true });
+// After an install, VS Code keeps running the previous extension code until the window reloads,
+// but this panel loads the new script from disk. The two then don't understand each other.
+const hostBuild = document.querySelector('meta[name="rtl-build"]')?.getAttribute('content');
+const updateBanner = h('div', { class: 'update-banner', role: 'alert', hidden: hostBuild === __BUILD__ },
+  h('strong', {}, 'RTL Diagram was updated. '),
+  'This window still runs the previous version, so some buttons won\'t respond. Reload the window to finish: open the Command Palette and run ',
+  h('span', { class: 'mono' }, 'Developer: Reload Window'), '.');
 const ctxMenu = h('div', { class: 'ctxmenu', role: 'menu', hidden: true });
-stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay);
+stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay, updateBanner);
 document.body.append(projMenu);
 
 const drawer = h('aside', { class: 'drawer', 'aria-label': 'Findings and details' });
@@ -326,9 +342,7 @@ function render(msg: ViewMsg) {
   drawNotes(msg);
   svg.setAttribute('aria-label', `Block diagram of ${g.module}: ${g.stats.instances} instances, ${g.stats.ports} ports`);
   live = msg.live ?? live;
-  const sp = msg.spacing ?? 'normal';
-  spacingBtn.querySelector('.tb-btn-label')!.textContent = sp[0].toUpperCase() + sp.slice(1);
-  spacingBtn.title = `Spacing: ${sp}. Click for ${sp === 'compact' ? 'normal' : sp === 'normal' ? 'roomy' : 'compact'}.`;
+  showSpacing(msg.spacing ?? 'normal');
   project = msg.project ?? project;
   if (tab === 'issues' && !msg.issues?.length) tab = 'findings';
   renderLive();
@@ -1331,12 +1345,15 @@ function toggleProjectMenu(anchor: HTMLElement) {
       onclick: () => { projMenu.hidden = true; on(); } },
       h('span', { class: 'pm-check', 'aria-hidden': 'true' }, opts.current ? '✓' : ''), h('span', { class: 'pm-text' }, h('span', { class: 'pm-label' }, label), sub ? h('span', { class: 'pm-sub' }, sub) : null));
   const rows: (Node | null)[] = [];
-  if (p?.candidates.length) {
-    rows.push(h('div', { class: 'pm-head' }, 'Projects in this folder'));
-    for (const c of p.candidates) rows.push(item(c.name, c.rel, () => vscode.postMessage({ type: 'setProject', folder: c.path }), { current: c.current }));
-  }
-  rows.push(item('Browse for a folder…', null, () => vscode.postMessage({ type: 'chooseProject' })));
-  rows.push(item('Whole workspace', 'every folder together', () => vscode.postMessage({ type: 'setProject', whole: true }), { current: p?.whole }));
+  const group = (title: string, list: ProjectRow[]) => {
+    if (!list.length) return;
+    rows.push(h('div', { class: 'pm-head' }, title));
+    for (const c of list) rows.push(item(c.name, c.rel, () => vscode.postMessage({ type: 'setProject', folder: c.path }), { current: c.current }));
+  };
+  group('Projects in this folder', p?.candidates ?? []);
+  group('Other folders', p?.recent ?? []);
+  if (rows.length) rows.push(h('div', { class: 'pm-sep' }));
+  rows.push(item('Browse for a folder…', 'any folder on this machine', () => vscode.postMessage({ type: 'browseProject' })));
   if (p && !p.needsChoice) {
     rows.push(h('div', { class: 'pm-sep' }));
     rows.push(item('Configure sources…', p.sources || 'where the RTL comes from', () => vscode.postMessage({ type: 'configureSources' })));
@@ -1360,8 +1377,7 @@ function projectChooser(p: ProjectState) {
       h('button', { class: 'chooser-row', onclick: () => vscode.postMessage({ type: 'setProject', folder: c.path }) },
         icon('repo'), h('span', { class: 'cr-name' }, c.name), h('span', { class: 'cr-path mono' }, c.rel))))),
     h('div', { class: 'chooser-more' },
-      h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'chooseProject' }) }, 'Browse for another folder'),
-      h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'setProject', whole: true }) }, 'Open the whole workspace together')));
+      h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'browseProject' }) }, 'Browse for another folder…')));
 }
 
 // ---------------------------------------------------------------- source issues
@@ -1369,12 +1385,19 @@ function projectChooser(p: ProjectState) {
 const ISSUE_KIND: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', sources: 'Sources:' };
 function openIssueCount() { return (view?.issues ?? []).filter(i => !i.checked).length; }
 
-/** Hatching and a rule-check diamond on blocks whose drawing may be incomplete. Neutral ink, never a finding colour. */
+/** The source-issue glyph used in HTML (chips, tooltips, the checklist). */
+function issueGlyph(extra = '') { return h('span', { class: `issue-glyph${extra ? ' ' + extra : ''}`, 'aria-hidden': 'true' }, '</>'); }
+
+/**
+ * Source issues on blocks whose drawing may be incomplete: magenta hatching and a </> badge with
+ * the count (outlined when the issue is further down). Magenta is used for nothing else, so these
+ * can't be mistaken for verification findings (red/amber/blue) or notes.
+ */
 function drawIssues(msg: ViewMsg) {
   const marks = msg.issueMarks;
   moduleIssuesChip.hidden = !marks?.module;
   if (marks?.module) {
-    moduleIssuesChip.replaceChildren(h('span', { class: 'diamond', 'aria-hidden': 'true' }),
+    moduleIssuesChip.replaceChildren(issueGlyph(),
       `${marks.module} source issue${marks.module === 1 ? '' : 's'} in ${msg.graph.module}: parts of this drawing may be missing`);
     moduleIssuesChip.onclick = () => { tab = 'issues'; if (!drawerOpen) { drawerOpen = true; body.classList.remove('drawer-closed'); persist(); } renderDrawer(); };
   }
@@ -1384,9 +1407,11 @@ function drawIssues(msg: ViewMsg) {
     const g = s('g', { class: `issue-mark${m.inside ? ' inside' : ''}`, role: 'button', tabindex: 0,
       'aria-label': `${m.count} source issue${m.count === 1 ? '' : 's'} ${m.inside ? 'inside' : 'in'} ${n.label}` });
     if (!m.inside) g.append(s('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 3, class: 'hatch' }));
-    const cx = n.x, cy = n.y + n.h, r = 9;
-    g.append(s('path', { d: `M${cx} ${cy - r}L${cx + r} ${cy}L${cx} ${cy + r}L${cx - r} ${cy}Z`, class: 'diamond-mark' }));
-    g.append(text(cx, cy + 3.5, String(m.count), 'diamond-t', 'middle'));
+    // Badge on the block's bottom-left corner: "</> 2".
+    const label = `</> ${m.count}`;
+    const bw = 12 + label.length * 6.2, bh = 17, bx = n.x - 8, by = n.y + n.h - bh / 2;
+    g.append(s('rect', { x: bx, y: by, width: bw, height: bh, rx: bh / 2, class: 'issue-badge' }));
+    g.append(text(bx + bw / 2, by + 12, label, 'issue-badge-t', 'middle'));
     const open = (ev: Event) => { ev.stopPropagation(); tab = 'issues'; if (!drawerOpen) { drawerOpen = true; body.classList.remove('drawer-closed'); persist(); } renderDrawer(); };
     g.addEventListener('click', open);
     g.addEventListener('keydown', ev => { if ((ev as KeyboardEvent).key === 'Enter') open(ev); });
@@ -1394,7 +1419,7 @@ function drawIssues(msg: ViewMsg) {
       const list = (msg.issues ?? []).filter(i => !i.checked && (i.modules.includes(n.sub ?? '') || m.inside));
       showTip(ev, h('div', {},
         h('div', { class: 'tip-title' }, m.inside ? `Source issues inside ${n.label}` : `Source issues in ${n.sub}`),
-        ...list.filter(i => !m.inside || !i.modules.includes(n.sub ?? '')).slice(0, 4).map(i => h('div', { class: 'tip-f' }, h('span', { class: 'diamond sm', 'aria-hidden': 'true' }), `${ISSUE_KIND[i.kind]}: ${i.title}`)),
+        ...list.filter(i => !m.inside || !i.modules.includes(n.sub ?? '')).slice(0, 4).map(i => h('div', { class: 'tip-f' }, issueGlyph('sm'), `${ISSUE_KIND[i.kind]} ${i.title}`)),
         h('div', { class: 'tip-hint' }, m.inside ? 'Somewhere below this block. Click to see the list.' : 'This block may be drawn incomplete. Click to see the list.')));
     });
     g.addEventListener('pointerleave', hideTip);
@@ -1408,7 +1433,9 @@ function issuesPanel() {
   const open = all.filter(i => !i.checked), done = all.filter(i => i.checked);
   const wrap = h('div', { class: 'issues-panel' },
     h('p', { class: 'muted small pad issues-intro' },
-      'Problems reading the RTL. Blocks they affect are hatched on the diagram and may be drawn incomplete. A syntax error is reported where it was noticed; the mistake is often just before, such as a missing \';\' on the line above. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'));
+      'Problems reading the RTL. Blocks they affect are hatched on the diagram and may be drawn incomplete. A syntax error is reported where it was noticed; the mistake is often just before, such as a missing \';\' on the line above. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'),
+    h('p', { class: 'muted small pad issues-intro' },
+      'Only syntax errors are found, not design mistakes: a misspelt or undeclared name, a missing port or a width mismatch is valid syntax. The diagram draws the RTL as written, so such a mistake shows as a wire that isn\'t connected where you expect.'));
   const row = (i: IssueRow) => {
     const id = `iss-${Math.abs([...i.key].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7))}`;
     const cb = h('input', { type: 'checkbox', id, checked: i.checked }) as HTMLInputElement;
@@ -1456,7 +1483,7 @@ window.addEventListener('message', ev => {
       themeBtn.title = themeMode === 'auto' ? 'Theme: follow VS Code (click for light)' : `Theme: ${label.toLowerCase()} (click to change)`;
       const st = document.documentElement.style;
       const c = m.colors ?? {};
-      for (const k of ['block', 'wire', 'error', 'warning', 'note']) {
+      for (const k of ['block', 'wire', 'error', 'warning', 'note', 'issue']) {
         if (c[k]) st.setProperty(`--user-${k}`, c[k]); else st.removeProperty(`--user-${k}`);
       }
       portGroupColors = c.portGroups ?? {};

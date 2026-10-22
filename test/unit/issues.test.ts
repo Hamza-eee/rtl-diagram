@@ -50,6 +50,17 @@ describe('source issues', () => {
     fs.rmSync(dir, { recursive: true });
   });
 
+  it('lists only the first error of a file Verible could not recover from', () => {
+    const d = buildDesign([], [], [], 'test');
+    const errors = [0, 3, 5].map(line => ({ line, column: 2, text: 'x' }));
+    const [one, ...rest] = collectIssues(d, [{ file: '/nowhere/bad.sv', errors, parsed: false, modules: [] }], []);
+    assert.strictEqual(rest.length, 0);
+    assert.strictEqual(one.line, 1);
+    assert.match(one.detail!, /2 more errors after this one/);
+    const recovered = collectIssues(d, [{ file: '/nowhere/ok.sv', errors, parsed: true, modules: ['m'] }], []);
+    assert.strictEqual(recovered.length, 3);              // a recovered file keeps every error
+  });
+
   it('explains a missing module by the broken file that declares it', async () => {
     const { dir, issues } = await brokenDesign();
     const core = issues.find(i => i.key === 'missing:core')!;

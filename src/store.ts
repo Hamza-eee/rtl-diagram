@@ -154,22 +154,29 @@ export class Store implements vscode.Disposable {
     return fs.existsSync(abs) ? abs : undefined;
   }
 
-  /** The stored choice: a folder, '*' for the whole workspace, or undefined if never chosen. */
+  /** The remembered choice, if it still exists. (An old '*' for "whole workspace" counts as no choice.) */
   private storedChoice(): string | undefined {
     const c = this.ctx.workspaceState.get<string>('projectFolder');
-    return c === '*' || (c && fs.existsSync(c)) ? c : undefined;
+    return c && c !== '*' && fs.existsSync(c) ? c : undefined;
   }
 
   /**
    * The project folder in use: the setting, else the remembered choice, else the only project
-   * found. Undefined means the whole workspace (explicitly chosen, or no projects detected).
+   * found. Undefined means no project was detected, so the open folder itself is read.
    */
   project(): string | undefined {
-    const s = this.settingProject();
-    if (s) return s;
-    const c = this.storedChoice();
-    if (c) return c === '*' ? undefined : c;
-    return this.candidates.length === 1 ? this.candidates[0] : undefined;
+    return this.settingProject() ?? this.storedChoice() ?? (this.candidates.length === 1 ? this.candidates[0] : undefined);
+  }
+
+  /** Folders opened with Browse that aren't among the detected projects, most recent first. */
+  recentProjects(): string[] {
+    return this.ctx.workspaceState.get<string[]>('recentProjects', [])
+      .filter(f => fs.existsSync(f) && !this.candidates.includes(f));
+  }
+
+  /** True if `folder` is outside every workspace folder (opened with Browse). */
+  outsideWorkspace(folder: string): boolean {
+    return !this.workspaceRoots().some(r => this.inScopeOf(r, folder));
   }
 
   /** Several projects found and none chosen: ask, rather than mixing them or picking one. */
@@ -177,7 +184,7 @@ export class Store implements vscode.Disposable {
     return !this.settingProject() && !this.storedChoice() && this.candidates.length > 1;
   }
 
-  /** Folders everything is read from: none while a choice is needed, else the project or the whole workspace. */
+  /** Folders everything is read from: none while a choice is needed, else the project (or the open folder if none was detected). */
   roots(): string[] {
     if (this.needsProject()) return [];
     const p = this.project();
@@ -187,7 +194,7 @@ export class Store implements vscode.Disposable {
   projectLabel(): string {
     if (this.needsProject()) return 'choose a project';
     const p = this.project();
-    return p ? path.basename(p) : 'whole workspace';
+    return p ? path.basename(p) : this.workspaceRoots().map(r => path.basename(r)).join(', ') || 'no folder open';
   }
 
   // ---------------------------------------------------------------- per-project sources
@@ -218,9 +225,13 @@ export class Store implements vscode.Disposable {
     });
   }
 
-  /** Use `folder` as the project; undefined means the whole workspace (remembered as such). */
-  async setProject(folder: string | undefined) {
-    await this.ctx.workspaceState.update('projectFolder', folder ?? '*');
+  /** Use `folder` as the project. A folder outside the detected projects is remembered under "Other folders". */
+  async setProject(folder: string) {
+    await this.ctx.workspaceState.update('projectFolder', folder);
+    if (!this.candidates.includes(folder)) {
+      const recent = this.ctx.workspaceState.get<string[]>('recentProjects', []).filter(f => f !== folder);
+      await this.ctx.workspaceState.update('recentProjects', [folder, ...recent].slice(0, 6));
+    }
     void vscode.commands.executeCommand('setContext', 'rtlDiagram.needsProject', false);
     await this.ctx.workspaceState.update('view', undefined);
     this.activeRun = undefined;
@@ -317,9 +328,11 @@ export class Store implements vscode.Disposable {
 
   private async scanRunsOnce(): Promise<void> {
     const glob = this.cfg().get('runsGlob', '**/reports/*/run.json');
-    const uris = (await Promise.all(this.roots().map(r =>
-      vscode.workspace.findFiles(new vscode.RelativePattern(vscode.Uri.file(r), glob), '**/{node_modules,.git,venv,.venv}/**', 500)))).flat();
-    const dirs = new Set([...uris.map(u => path.dirname(u.fsPath)), ...this.extraRunDirs()]);
+    // VS Code's file search covers workspace folders; a project opened from outside them is walked directly.
+    const found = (await Promise.all(this.roots().map(async r => this.outsideWorkspace(r)
+      ? expandGlob(r, glob).slice(0, 500)
+      : (await vscode.workspace.findFiles(new vscode.RelativePattern(vscode.Uri.file(r), glob), '**/{node_modules,.git,venv,.venv}/**', 500)).map(u => u.fsPath)))).flat();
+    const dirs = new Set([...found.map(f => path.dirname(f)), ...this.extraRunDirs()]);
     const prevActive = this.activeRun?.dir;
     this.runs = [...dirs].map(d => loadRun(d)).sort((a, b) => b.runId.localeCompare(a.runId));
     this.activeRun = this.runs.find(r => r.dir === prevActive);

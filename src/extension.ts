@@ -3,10 +3,11 @@ import * as path from 'path';
 import { Store } from './store';
 import { HierarchyTree } from './views/hierTree';
 import { RunsTree } from './views/runsTree';
-import { DiagramPanel, openLoc } from './panel';
+import { DiagramPanel, displayPath, openLoc } from './panel';
 import { clearCache } from './sv/verible';
-import { findProjects } from './util/projects';
+import { findProjects, hasRtl } from './util/projects';
 import * as fs from 'fs';
+import * as os from 'os';
 
 export async function activate(ctx: vscode.ExtensionContext) {
   const store = new Store(ctx);
@@ -34,7 +35,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
     else {
       status.text = store.needsProject() ? '$(repo) RTL: choose a project' : `$(circuit-board) RTL: ${store.projectLabel()} · ${d?.sourceMode ?? 'no sources'}`;
     }
-    status.tooltip = store.lastError ?? `Project: ${store.needsProject() ? 'not chosen yet' : store.project() ?? 'all workspace folders'}\nClick to open another project.`;
+    status.tooltip = store.lastError ?? `Project: ${store.needsProject() ? 'not chosen yet' : store.project() ?? 'the open folder'}\nClick to open another project.`;
     status.show();
   };
 
@@ -61,9 +62,15 @@ export async function activate(ctx: vscode.ExtensionContext) {
     for (const [file, list] of byFile) diags.set(vscode.Uri.file(file), list);
   };
 
-  ctx.subscriptions.push(store.onDidChange(() => { updateStatus(); updateDiagnostics(); }));
+  ctx.subscriptions.push(store.onDidChange(() => { updateStatus(); updateDiagnostics(); rewatch(); }));
 
   const openPanel = () => DiagramPanel.show(ctx, store);
+  const openProject = async (folder: string) => {
+    clearCache();
+    await store.setProject(folder);
+    rewatch();
+    openPanel();
+  };
 
   ctx.subscriptions.push(
     vscode.commands.registerCommand('rtlDiagram.openDiagram', () => { openPanel(); }),
@@ -101,34 +108,49 @@ export async function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('rtlDiagram.chooseProject', async () => {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Looking for RTL projects…' }, () => store.detectProjects());
       const current = store.needsProject() ? undefined : store.project();
-      const whole = !store.needsProject() && !current;
-      type Item = vscode.QuickPickItem & { folder?: string; browse?: boolean; whole?: boolean };
+      type Item = vscode.QuickPickItem & { folder?: string; browse?: boolean };
+      const row = (f: string): Item => ({
+        label: `${f === current ? '$(check)' : '$(folder)'} ${path.basename(f)}`, description: displayPath(f), folder: f,
+        detail: f === current ? 'Open now' : fs.existsSync(path.join(f, 'Bender.yml')) ? 'Bender package' : undefined,
+      });
+      const recent = store.recentProjects();
       const items: Item[] = [
-        ...store.candidates.map(f => ({
-          label: `${f === current ? '$(check)' : '$(repo)'} ${path.basename(f)}`, description: vscode.workspace.asRelativePath(f), folder: f,
-          detail: f === current ? 'Open now' : fs.existsSync(path.join(f, 'Bender.yml')) ? 'Bender package' : undefined,
-        })),
+        ...(store.candidates.length ? [{ label: 'Projects in this folder', kind: vscode.QuickPickItemKind.Separator }, ...store.candidates.map(row)] : []),
+        ...(recent.length ? [{ label: 'Other folders', kind: vscode.QuickPickItemKind.Separator }, ...recent.map(row)] : []),
         { label: '', kind: vscode.QuickPickItemKind.Separator },
-        { label: '$(folder-opened) Browse for a folder…', browse: true },
-        { label: `${whole ? '$(check)' : '$(root-folder)'} Whole workspace`, description: 'every workspace folder together', whole: true },
+        { label: '$(folder-opened) Browse for a folder…', description: 'any folder on this machine', browse: true },
       ];
       const pick = await vscode.window.showQuickPick(items, {
         title: 'RTL Diagram: open a project',
-        placeHolder: store.candidates.length ? 'RTL, verification runs and notes are read from the chosen folder only' : 'No git repositories with RTL found: browse for a folder, or use the whole workspace',
+        placeHolder: store.candidates.length ? 'RTL, verification runs and notes are read from the chosen folder only' : 'No git repositories with RTL found here: browse for a folder',
         matchOnDescription: true,
       });
       if (!pick) return;
-      let folder = pick.folder;
-      if (pick.browse) {
-        const roots = store.workspaceRoots();
-        const sel = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Open as project',
-          defaultUri: roots[0] ? vscode.Uri.file(roots[0]) : undefined });
-        if (!sel?.[0]) return;
-        folder = sel[0].fsPath;
+      if (pick.browse) return vscode.commands.executeCommand('rtlDiagram.browseProject');
+      if (pick.folder) await openProject(pick.folder);
+    }),
+    vscode.commands.registerCommand('rtlDiagram.openProject', (folder: string) => openProject(folder)),
+    vscode.commands.registerCommand('rtlDiagram.browseProject', async () => {
+      const roots = store.workspaceRoots();
+      const cur = store.project();
+      const sel = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Open as project',
+        title: 'Choose the project folder (a repository or any folder with RTL)',
+        defaultUri: vscode.Uri.file(cur ? path.dirname(cur) : roots[0] ?? os.homedir()) });
+      if (!sel?.[0]) return;
+      const folder = sel[0].fsPath;
+      // A parent folder of several repositories: ask which one, as when such a folder is opened.
+      const inside = await findProjects([folder]);
+      let target = folder;
+      if (inside.length > 1 && !inside.includes(folder)) {
+        const p = await vscode.window.showQuickPick(inside.map(f => ({ label: path.basename(f), description: displayPath(f), folder: f })),
+          { title: `${path.basename(folder)} holds ${inside.length} RTL projects: open which one?` });
+        if (!p) return;
+        target = p.folder;
+      } else if (!inside.length && !(await hasRtl(folder))) {
+        void vscode.window.showWarningMessage(`No .sv or .v files or Bender.yml found in ${displayPath(folder)}. The project was not changed.`);
+        return;
       }
-      clearCache();
-      await store.setProject(pick.whole ? undefined : folder);
-      openPanel();
+      await openProject(target);
     }),
     vscode.commands.registerCommand('rtlDiagram.configureSources', async () => {
       if (store.needsProject()) { await vscode.commands.executeCommand('rtlDiagram.chooseProject'); return; }
@@ -192,43 +214,56 @@ export async function activate(ctx: vscode.ExtensionContext) {
     if (t) clearTimeout(t);
     t = setTimeout(() => void store.rescanDesign(), 600);
   };
-  const w1 = vscode.workspace.createFileSystemWatcher('**/*.{sv,svh,v,vh}');
-  const w2 = vscode.workspace.createFileSystemWatcher('**/{Bender.yml,*.f}');
-  // Runs: a flow may write run.json before findings.sarif, or rewrite them in place, so follow both
-  // files and every kind of change, debounced so a run being written is read once it is complete.
-  const w3 = vscode.workspace.createFileSystemWatcher('**/{run.json,findings.sarif}');
   let tr: NodeJS.Timeout | undefined;
   const rescanRuns = (uri?: vscode.Uri) => { if (uri && !store.inScope(uri.fsPath)) return; if (tr) clearTimeout(tr); tr = setTimeout(() => void store.rescanRuns(), 400); };
   let tn: NodeJS.Timeout | undefined;
   const reloadNotes = (uri?: vscode.Uri) => { if (uri && !store.inScope(uri.fsPath)) return; if (tn) clearTimeout(tn); tn = setTimeout(() => store.reloadNotes(), 200); };
-  // The notes watcher follows rtlDiagram.notesFolder, so it is recreated when that setting changes.
-  let w4: vscode.FileSystemWatcher | undefined;
-  const watchNotes = () => {
-    w4?.dispose();
-    w4 = vscode.workspace.createFileSystemWatcher(`**/${store.notesFolderName()}/*.json`);
-    w4.onDidChange(reloadNotes); w4.onDidCreate(reloadNotes); w4.onDidDelete(reloadNotes);
+  // Watchers are scoped to the project folders, so a project opened from outside the workspace is
+  // watched too. They are recreated when the folders or rtlDiagram.notesFolder change.
+  // Runs: a flow may write run.json before findings.sarif, or rewrite them in place, so follow both
+  // files and every kind of change, debounced so a run being written is read once it is complete.
+  let watchers: vscode.Disposable[] = [];
+  let watchKey = '';
+  const rewatch = () => {
+    const roots = store.roots().length ? store.roots() : store.workspaceRoots();
+    const key = [...roots, store.notesFolderName()].join('\n');
+    if (key === watchKey) return;
+    watchKey = key;
+    watchers.forEach(w => w.dispose());
+    watchers = [];
+    const watch = (glob: string, on: (u: vscode.Uri) => void) => {
+      for (const r of roots) {
+        const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(r), glob));
+        w.onDidChange(on); w.onDidCreate(on); w.onDidDelete(on);
+        watchers.push(w);
+      }
+    };
+    watch('**/*.{sv,svh,v,vh}', schedule);
+    watch('**/{Bender.yml,*.f}', schedule);
+    watch('**/{run.json,findings.sarif}', rescanRuns);
+    watch(`**/${store.notesFolderName()}/*.json`, reloadNotes);
   };
-  watchNotes();
-  ctx.subscriptions.push({ dispose: () => w4?.dispose() });
-  for (const w of [w1, w2]) { w.onDidChange(schedule); w.onDidCreate(schedule); w.onDidDelete(schedule); }
-  w3.onDidCreate(rescanRuns); w3.onDidChange(rescanRuns); w3.onDidDelete(rescanRuns);
-  ctx.subscriptions.push(w1, w2, w3, vscode.workspace.onDidChangeConfiguration(e => {
-    if (e.affectsConfiguration('rtlDiagram.notesFolder')) { watchNotes(); reloadNotes(); }
+  ctx.subscriptions.push({ dispose: () => watchers.forEach(w => w.dispose()) });
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration('rtlDiagram.notesFolder')) { rewatch(); reloadNotes(); }
+    if (e.affectsConfiguration('rtlDiagram.projectFolder')) rewatch();
     if (e.affectsConfiguration('rtlDiagram')) { schedule(); void store.rescanRuns(); }
   }));
 
   updateStatus();
   // Find RTL projects first: with several and no choice, nothing is mixed; the views ask instead.
   await store.detectProjects();
+  rewatch();
   ctx.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(async () => {
     await store.detectProjects();
+    rewatch();
     await Promise.all([store.rescanDesign(), store.rescanRuns()]);
     store.reloadNotes();
   }));
   updateHierTitle();
   await Promise.all([store.rescanDesign(), store.rescanRuns()]);
   store.reloadNotes();
-  return { store };   // exposed for integration tests
+  return { store, panel: () => DiagramPanel.current };   // exposed for integration tests
 }
 
 export function deactivate() { /* nothing */ }

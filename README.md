@@ -38,7 +38,7 @@ Nothing else is needed: no simulator, no license, no Python, no network access. 
 3. Open a folder with your RTL and click the **RTL Diagram** icon in the activity bar.
 4. Click a module in **Hierarchy** to open its diagram.
 
-If you opened a folder that holds several projects (for example a parent folder of many repositories), nothing is mixed: the diagram and the Hierarchy view ask which project to open. A folder with a single project opens directly. Switch project any time from the first segment of the diagram's breadcrumb (the project name), the Hierarchy view title bar, or the status bar.
+If you opened a folder that holds several projects (for example a parent folder of many repositories), nothing is mixed: the diagram and the Hierarchy view ask which project to open. A folder with a single project opens directly. Switch project any time from the first segment of the diagram's breadcrumb (the project name), the Hierarchy view title bar, or the status bar. Its menu lists the projects in the open folder, and **Browse for a folder…** opens any other folder on your machine as the project; folders opened that way stay in the menu under *Other folders*.
 
 ## Using the diagram
 
@@ -72,7 +72,7 @@ If you opened a folder that holds several projects (for example a parent folder 
 | Coloured probe with a rule ID | where a verification finding was observed; a dotted ring marks the statements that directly drive that signal (candidates, not a diagnosis) |
 | Count badge on a block | findings on that instance or somewhere inside it |
 | Speech bubble | one or more notes |
-| Hatched block with a black diamond | a source issue (such as a syntax error) affects this block, so it may be drawn incomplete; a hollow diamond means the issue is in a block further down |
+| Magenta hatching and a `</>` badge | a source issue (such as a syntax error) affects this block, so it may be drawn incomplete; the badge shows how many. An outlined badge means the issue is in a block further down |
 
 A net is drawn only if the module declares it as a port, net or variable. Names are used for display choices only (which nets become labels, pin colours), never for connectivity.
 
@@ -105,16 +105,18 @@ Right-click a port, pin, wire, block or empty space and choose **Add note**. Pic
 
 Problems reading the RTL are shown on the diagram, not just in a list:
 
-- **Syntax errors**: the block whose file has the error is hatched. If Verible couldn't read the file at all, its modules are missing, and the "not found" entry says which broken file declares them.
+- **Syntax errors**: the block whose file has the error is hatched. If Verible couldn't read the file at all, its modules are missing, and the "not found" entry says which broken file declares them. Only the first error of such a file is listed, since the ones after it are usually knock-on effects.
 - **Modules declared more than once**: the first one in source order is used.
 - **Modules not found**: an instance of a module that isn't in the files read (a vendor primitive, a missing dependency, or a file outside the sources).
 - **Source problems**: unreadable Bender manifests, globs that matched nothing, missing filelist entries.
 
 The **Issues** tab lists them as a checklist with links to each line. Tick issues off as you go: ticks last until VS Code closes, and an issue that gets fixed disappears by itself. A syntax error is reported where Verible noticed it; the actual mistake is often just before, such as a missing `;` on the line above.
 
+These are parse problems only. The extension shows the RTL as written; it is not a linter. A misspelt or undeclared name, a port left out of a module header, or a width mismatch is valid syntax, so it isn't reported. It does show on the diagram, though, as a wire that isn't connected where you expect: a renamed input appears as an unconnected port, and an instance pin tied to an undeclared name has no wire.
+
 ## Where the RTL comes from
 
-The extension reads from the project folder you chose, or from the whole workspace if you didn't choose one. In `auto` mode the first of these that exists is used:
+The extension reads from the project folder you chose (or the open folder, if it holds no separate projects). In `auto` mode the first of these that exists is used:
 
 1. **Bender.** Every `Bender.yml` is read directly: sources in order, globs expanded, `path` dependencies followed. Source groups with a `target:` are included only when the expression holds for `rtlDiagram.benderTargets`. The default is no active targets, which gives plain RTL: `test`, `simulation` and technology-specific groups are left out. `bender` itself is never run, so nothing is written to your repository. Git dependencies resolve if they are already checked out under `.bender/`.
 2. **Filelists** listed in `rtlDiagram.filelists`, with support for `-f` nesting, `+incdir+`, `-v` and `-y`.
@@ -128,7 +130,7 @@ To use something else for one project, open the project menu (the project name a
 
 | Setting | Default | Description |
 |---|---|---|
-| `rtlDiagram.projectFolder` | *(empty)* | Folder to read RTL, runs and notes from. Empty: the folder chosen with *Choose Project Folder…*, or the whole workspace. |
+| `rtlDiagram.projectFolder` | *(empty)* | Folder to read RTL, runs and notes from. Empty: the project chosen in the diagram's project menu, or the only project found. |
 | `rtlDiagram.liveUpdate` | `true` | Redraw when RTL files are saved. Off: keep the diagram and list changed files. |
 | `rtlDiagram.veriblePath` | `verible-verilog-syntax` | Verible syntax tool. |
 | `rtlDiagram.sourceMode` | `auto` | `auto`, `bender`, `filelist` or `glob`. |
@@ -143,7 +145,7 @@ To use something else for one project, open the project menu (the project name a
 | `rtlDiagram.layout.spacing` | `normal` | `compact`, `normal` or `roomy`; the toolbar button changes it per workspace. |
 | `rtlDiagram.notesFolder` | `.rtl-notes` | Where notes are stored, inside the project folder. |
 | `rtlDiagram.theme` | `auto` | `auto` follows VS Code; `light` or `dark` fixes the diagram theme. |
-| `rtlDiagram.colors.block`, `.wire`, `.error`, `.warning`, `.note` | theme | CSS colours for blocks, wires and finding levels. |
+| `rtlDiagram.colors.block`, `.wire`, `.error`, `.warning`, `.note`, `.issue` | theme | CSS colours for blocks, wires, finding levels and source-issue marks. |
 | `rtlDiagram.colors.portGroups` | `{}` | Pin colour per name prefix, e.g. `{ "s_axi_aw": "#1565C0" }`. |
 
 ## Commands
@@ -168,6 +170,7 @@ To use something else for one project, open the project menu (the project name a
 - **A block is dashed with "not in sources".** The instantiated module isn't in the files read, often a vendor primitive or a missing Bender dependency. Run `bender checkout` for git dependencies.
 - **A finding says "Not found in the RTL".** The card shows why: the DUT module isn't parsed, an instance on its path doesn't exist, or the port name differs from the RTL.
 - **A block looks incomplete or is hatched.** See the Issues tab: a syntax error or a missing module affects it.
+- **Buttons in the diagram don't respond after installing a new version**, or the diagram shows *RTL Diagram was updated*. VS Code keeps running the previous version until the window reloads: run **Developer: Reload Window**.
 
 ## Limitations
 

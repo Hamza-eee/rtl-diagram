@@ -9,7 +9,10 @@ All notable changes to this extension are listed here.
 - Findings are worded as observations ("Observed at", "Direct drivers … not a diagnosis").
 - Note files are validated, and note writes are confined to the notes folder.
 - Folders with several projects ask which one to open instead of mixing them; the project name at the start of the breadcrumb switches project and configures sources per project.
-- Source issues (syntax errors, duplicate or missing modules, source problems) are marked on the affected blocks and listed as a session checklist.
+- Source issues (syntax errors, duplicate or missing modules, source problems) are marked on the affected blocks (magenta hatching and a `</>` badge) and listed as a session checklist. A file Verible can't read lists only its first error.
+- The project menu lists the projects in the open folder and any folder opened with **Browse for a folder…** (which may be outside the workspace; it is watched for changes too). The "whole workspace" option is gone.
+- The diagram says when the window still runs a previous version after an install, and needs a reload.
+- The Spacing and Live buttons show their new state as soon as they are clicked.
 - Layout: fewer wire crossings, a spacing setting (Compact / Normal / Roomy), and hovering a block fades unrelated wires.
 - Clear setup requirements and an actionable message when Verible is missing.
 

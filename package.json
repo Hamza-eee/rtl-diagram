@@ -185,7 +185,7 @@
         "rtlDiagram.projectFolder": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Folder to read RTL, verification runs and notes from (absolute, or relative to the first workspace folder). Empty: use the folder chosen with **RTL Diagram: Choose Project Folder\u2026**, or the whole workspace."
+          "markdownDescription": "Folder to read RTL, verification runs and notes from (absolute, or relative to the first workspace folder). Empty: the project chosen in the diagram's project menu (or with **RTL Diagram: Open Project\u2026**), or the only project found."
         },
         "rtlDiagram.liveUpdate": {
           "type": "boolean",
@@ -315,6 +315,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Colour for `note` findings. Empty: theme default."
+        },
+        "rtlDiagram.colors.issue": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Colour of source-issue marks (syntax errors and the like) on the diagram. Empty: theme default (magenta)."
         },
         "rtlDiagram.colors.portGroups": {
           "type": "object",
