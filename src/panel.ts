@@ -9,6 +9,7 @@ import { primaryOf, repoPath } from './findings/run';
 import { SignalRef } from './findings/resolve';
 import { pathsTo } from './findings/markers';
 import { anchorLabel, detachedReason, noteMarksFor } from './notes/notes';
+import { issueMarksFor } from './issues';
 
 type ThemeMode = 'auto' | 'light' | 'dark';
 
@@ -100,7 +101,7 @@ export class DiagramPanel implements vscode.Disposable {
     const seq = ++this.renderSeq;
     const d = this.store.design;
     if (!d || !Object.keys(d.modules).length) {
-      void this.panel.webview.postMessage({ type: 'empty', scanning: this.store.scanning, error: this.store.lastError, veribleMissing: this.store.veribleMissing, sourceMode: d?.sourceMode });
+      void this.panel.webview.postMessage({ type: 'empty', scanning: this.store.scanning, error: this.store.lastError, veribleMissing: this.store.veribleMissing, sourceMode: d?.sourceMode, project: this.projectState() });
       return;
     }
     if (!this.top || !d.modules[this.top]) {
@@ -152,11 +153,31 @@ export class DiagramPanel implements vscode.Disposable {
         } : null,
       } : null,
       live: this.liveState(),
+      project: this.projectState(),
+      issues: this.issuesState(),
+      issueMarks: issueMarksFor(d, this.store.issues, this.store.checkedIssues, m.name),
       findings, notes, path: this.path, sourceMode: d.sourceMode, tops: this.store.tops(), top: this.top,
       select: this.pendingSelect,
     });
     if (this.pendingSelect?.finding !== undefined) this.sendDetail(this.pendingSelect.finding);
     this.pendingSelect = undefined;
+  }
+
+  private projectState() {
+    const cur = this.store.needsProject() ? undefined : this.store.project();
+    return {
+      label: this.store.projectLabel(), needsChoice: this.store.needsProject(), whole: !this.store.needsProject() && !cur,
+      sources: this.store.design?.sourceMode ?? '',
+      candidates: this.store.candidates.map(f => ({ path: f, name: path.basename(f), rel: vscode.workspace.asRelativePath(f), current: f === cur })),
+    };
+  }
+
+  private issuesState() {
+    return this.store.issues.map(i => ({
+      key: i.key, kind: i.kind, title: i.title, detail: i.detail, modules: i.modules,
+      file: i.file, line: i.line, col: i.col, rel: i.file ? vscode.workspace.asRelativePath(i.file) : undefined,
+      checked: this.store.checkedIssues.has(i.key),
+    }));
   }
 
   private liveState() {
@@ -314,6 +335,24 @@ export class DiagramPanel implements vscode.Disposable {
       case 'setLive':
         await this.store.setLive(!!m.on);
         return;
+      case 'checkIssue':
+        if (typeof m.key === 'string') this.store.setIssueChecked(m.key, !!m.checked);
+        return;
+      case 'uncheckIssues':
+        this.store.clearIssueChecks();
+        return;
+      case 'chooseProject':
+        await vscode.commands.executeCommand('rtlDiagram.chooseProject');
+        return;
+      case 'configureSources':
+        await vscode.commands.executeCommand('rtlDiagram.configureSources');
+        return;
+      case 'setProject': {
+        const f = typeof m.folder === 'string' ? m.folder : undefined;
+        if (f && !this.store.candidates.includes(f)) return;     // only folders the extension found itself
+        await this.store.setProject(m.whole ? undefined : f);
+        return;
+      }
       case 'openSetting':
         if (typeof m.key === 'string' && m.key.startsWith('rtlDiagram.')) await vscode.commands.executeCommand('workbench.action.openSettings', m.key);
         return;

@@ -1,3 +1,4 @@
+import { ISSUE_KIND_LABEL } from '../issues';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { Store } from '../store';
@@ -11,6 +12,7 @@ export interface HierNode {
   text?: string;
   file?: string;
   line?: number;
+  detail?: string;
 }
 
 export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
@@ -38,7 +40,7 @@ export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
       }
       case 'issue': {
         const it = new vscode.TreeItem(n.text ?? '', vscode.TreeItemCollapsibleState.None);
-        it.tooltip = n.text;
+        it.tooltip = n.detail ? `${n.text}\n${n.detail}` : n.text;
         if (n.file) {
           it.description = path.basename(n.file) + (n.line ? `:${n.line}` : '');
           it.command = { command: 'vscode.open', title: 'Open', arguments: [vscode.Uri.file(n.file), n.line ? { selection: new vscode.Range(n.line - 1, 0, n.line - 1, 0) } : undefined] };
@@ -76,7 +78,8 @@ export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
       const out: HierNode[] = [];
       if (!Object.keys(d.modules).length) return [];
       out.push({ kind: 'info', text: d.sourceMode });
-      if (d.issues.length) out.push({ kind: 'issues', text: `${d.issues.length} source issue${d.issues.length === 1 ? '' : 's'}` });
+      const open = this.store.issues.filter(i => !this.store.checkedIssues.has(i.key)).length;
+      if (this.store.issues.length) out.push({ kind: 'issues', text: `${open} source issue${open === 1 ? '' : 's'}${open < this.store.issues.length ? ` (${this.store.issues.length - open} checked)` : ''}` });
       const tops = this.store.tops();
       // Roots: tops with children first; single-module tops collapse into "Other modules".
       const big = tops.filter(t => d.modules[t].instances.length);
@@ -88,7 +91,7 @@ export class HierarchyTree implements vscode.TreeDataProvider<HierNode> {
       return out;
     }
     if (n.kind === 'issues') {
-      return d.issues.map(i => ({ kind: 'issue', text: i.message, file: i.file || undefined, line: i.line }));
+      return this.store.issues.map(i => ({ kind: 'issue', text: `${this.store.checkedIssues.has(i.key) ? '✓ ' : ''}${ISSUE_KIND_LABEL[i.kind]} ${i.title}`, file: i.file, line: i.line, detail: i.detail }));
     }
     if (n.kind === 'others') {
       return (n.module ?? '').split(',').filter(Boolean).map(t => ({ kind: 'top', top: t, path: [], module: t }));

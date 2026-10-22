@@ -21,6 +21,16 @@ interface NoteView {
 interface NoteMark { ids: string[]; kind: NoteKind; resolved: boolean; inside: boolean }
 interface NotesMsg { marks: Record<string, NoteMark>; here: string[]; all: NoteView[]; issues: string[] }
 interface LiveState { on: boolean; pending: string[] }
+interface ProjectState {
+  label: string; needsChoice: boolean; whole: boolean; sources: string;
+  candidates: { path: string; name: string; rel: string; current: boolean }[];
+}
+type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'sources';
+interface IssueRow {
+  key: string; kind: IssueKind; title: string; detail?: string; modules: string[];
+  file?: string; line?: number; col?: number; rel?: string; checked: boolean;
+}
+interface IssueMarks { module: number; nodes: Record<string, { count: number; inside: boolean }> }
 interface ViewMsg {
   graph: ViewGraph; crumbs: Crumb[]; markers: Markers; findings: FindingRow[]; notes: NotesMsg; path: string[];
   run: {
@@ -28,6 +38,9 @@ interface ViewMsg {
     freshness: { state: 'same' | 'changed' | 'unknown'; reason: string; changed: { file: string; rel: string }[] } | null;
   } | null;
   live: LiveState;
+  project: ProjectState;
+  issues: IssueRow[];
+  issueMarks: IssueMarks;
   sourceMode: string; tops: string[]; top: string; select?: { finding?: number; node?: string; note?: string };
 }
 
@@ -40,7 +53,8 @@ let T = { x: 0, y: 0, k: 1 };
 let selection: { kind: 'node' | 'pin' | 'net'; id: string } | null = null;
 let activeFinding: number | null = null;
 let detail: any = null;
-let tab: 'findings' | 'notes' | 'details' = 'findings';
+let tab: 'findings' | 'notes' | 'issues' | 'details' = 'findings';
+let project: ProjectState | null = null;
 /** A note being written: where it goes, and the form state (kept across re-renders). */
 let draft: { anchor: NoteAnchor; label: string; scope: { top: string; instPath: string[] } | null; kind: NoteKind; text: string; onlyHere: boolean } | null = null;
 let editing: { id: string; text: string; kind: NoteKind } | null = null;
@@ -98,6 +112,7 @@ function icon(name: string) {
     copy: 'M5 5h8v9H5zM3 11V2h8',
     term: 'M2 3h12v10H2zM4.5 6.5 6.5 8l-2 1.5M8 10h3.5',
     file: 'M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3',
+    repo: 'M1.5 4V12.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H7.5L6 3.5H2.5a1 1 0 0 0-1 .5z',
   };
   const e = s('svg', { viewBox: '0 0 16 16', width: 16, height: 16, class: 'ico', 'aria-hidden': 'true' });
   e.append(s('path', { d: paths[name] ?? '', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
@@ -131,7 +146,8 @@ toolbar.append(
 const stage = h('main', { class: 'stage', tabindex: '0', 'aria-label': 'Block diagram' });
 const svg = s('svg', { class: 'canvas', role: 'img' });
 const defs = s('defs');
-defs.innerHTML = `<pattern id="grid" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.9" class="grid-dot"/></pattern>`;
+defs.innerHTML = `<pattern id="grid" width="16" height="16" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="0.9" class="grid-dot"/></pattern>`
+  + `<pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" class="hatch-line"/></pattern>`;
 const gridRect = s('rect', { class: 'grid', x: -1e5, y: -1e5, width: 2e5, height: 2e5, fill: 'url(#grid)' });
 const world = s('g', { class: 'world' });
 const gEdges = s('g', { class: 'edges' });
@@ -146,9 +162,13 @@ const miniSvg = s('svg', { class: 'mini' });
 minimap.append(miniSvg);
 const overlay = h('div', { class: 'overlay', hidden: true });
 const moduleNotesChip = h('button', { class: 'module-notes', hidden: true });
+const moduleIssuesChip = h('button', { class: 'module-issues', hidden: true });
+const stageChips = h('div', { class: 'stage-chips' }, moduleNotesChip, moduleIssuesChip);
+const projMenu = h('div', { class: 'proj-menu', role: 'menu', hidden: true });
 const pendingBanner = h('div', { class: 'pending-banner', role: 'status', hidden: true });
 const ctxMenu = h('div', { class: 'ctxmenu', role: 'menu', hidden: true });
-stage.append(svg, tooltip, minimap, moduleNotesChip, pendingBanner, ctxMenu, overlay);
+stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay);
+document.body.append(projMenu);
 
 const drawer = h('aside', { class: 'drawer', 'aria-label': 'Findings and details' });
 const statusEl = h('footer', { class: 'status' });
@@ -287,15 +307,19 @@ function render(msg: ViewMsg) {
     (pinEdges.get(e.to) ?? pinEdges.set(e.to, []).get(e.to)!).push(e.id);
   }
   overlay.hidden = true;
+  minimap.hidden = false;
   gEdges.replaceChildren(); gNodes.replaceChildren(); gMarks.replaceChildren(); gNotes.replaceChildren();
   edgeEls = new Map();
   for (const e of g.edges) drawEdge(e, msg.markers);
   drawJunctions(g);
   for (const n of g.nodes) drawNode(n, msg.markers);
   drawMarkers(msg);
+  drawIssues(msg);
   drawNotes(msg);
   svg.setAttribute('aria-label', `Block diagram of ${g.module}: ${g.stats.instances} instances, ${g.stats.ports} ports`);
   live = msg.live ?? live;
+  project = msg.project ?? project;
+  if (tab === 'issues' && !msg.issues?.length) tab = 'findings';
   renderLive();
   renderCrumbs();
   renderStatus();
@@ -620,10 +644,10 @@ function markerTip(list: Marker[], pin: string) {
 // ---------------------------------------------------------------- toolbar bits
 function renderCrumbs() {
   if (!view) return;
-  crumbsEl.replaceChildren();
+  crumbsEl.replaceChildren(projectChip());
   view.crumbs.forEach((c, i) => {
     const last = i === view!.crumbs.length - 1;
-    if (i) crumbsEl.append(h('span', { class: 'crumb-sep', 'aria-hidden': 'true' }, '/'));
+    crumbsEl.append(h('span', { class: 'crumb-sep', 'aria-hidden': 'true' }, '/'));
     if (i === 0 && view!.tops.length > 1) {
       const sel = h('select', { class: 'crumb-top', 'aria-label': 'Top module', onchange: (e: Event) => vscode.postMessage({ type: 'setTop', top: (e.target as HTMLSelectElement).value }) },
         ...view!.tops.map(t => h('option', { value: t, selected: t === view!.top }, t)));
@@ -787,12 +811,15 @@ function renderDrawer() {
       'Findings', view?.findings.length ? h('span', { class: 'count' }, String(view.findings.length)) : null),
     h('button', { role: 'tab', class: tab === 'notes' ? 'on' : '', 'aria-selected': tab === 'notes', onclick: () => { tab = 'notes'; renderDrawer(); } },
       'Notes', view?.notes.here.length ? h('span', { class: 'count' }, String(view.notes.here.length)) : null),
+    view?.issues.length ? h('button', { role: 'tab', class: tab === 'issues' ? 'on' : '', 'aria-selected': tab === 'issues', onclick: () => { tab = 'issues'; renderDrawer(); } },
+      'Issues', openIssueCount() ? h('span', { class: 'count issues' }, String(openIssueCount())) : null) : null,
     h('button', { role: 'tab', class: tab === 'details' ? 'on' : '', 'aria-selected': tab === 'details', onclick: () => { tab = 'details'; renderDrawer(); } }, 'Details'),
   );
   const content = h('div', { class: 'drawer-body', role: 'tabpanel' });
   const hadFocus = document.activeElement?.classList.contains('note-input');
   if (tab === 'findings') content.append(findingsList());
   else if (tab === 'notes') content.append(notesPanel());
+  else if (tab === 'issues') content.append(issuesPanel());
   else if (activeFinding !== null) content.append(detail && detail.index === activeFinding ? findingCard(detail) : h('p', { class: 'muted pad' }, 'Loading finding…'));
   else content.append(selectionCard());
   drawer.replaceChildren(runHeader(), tabs, content);
@@ -1249,6 +1276,125 @@ function notesPanel() {
   return wrap;
 }
 
+// ---------------------------------------------------------------- projects
+
+/** First breadcrumb segment: the open project, with a menu to switch or configure sources. */
+function projectChip() {
+  const label = project?.label ?? 'project';
+  const b = h('button', { class: `crumb proj${project?.needsChoice ? ' needs' : ''}`, 'aria-haspopup': 'menu', title: 'Open another project, or choose where the RTL comes from' },
+    icon('repo'), h('span', {}, label), h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾'));
+  b.addEventListener('click', e => { e.stopPropagation(); toggleProjectMenu(b); });
+  return b;
+}
+
+function toggleProjectMenu(anchor: HTMLElement) {
+  if (!projMenu.hidden) { projMenu.hidden = true; return; }
+  const p = project;
+  const item = (label: Node | string, sub: string | null, on: () => void, opts: { current?: boolean; cls?: string } = {}) =>
+    h('button', { role: 'menuitemradio', 'aria-checked': !!opts.current, class: `pm-item${opts.current ? ' current' : ''}${opts.cls ? ' ' + opts.cls : ''}`,
+      onclick: () => { projMenu.hidden = true; on(); } },
+      h('span', { class: 'pm-check', 'aria-hidden': 'true' }, opts.current ? '✓' : ''), h('span', { class: 'pm-text' }, h('span', { class: 'pm-label' }, label), sub ? h('span', { class: 'pm-sub' }, sub) : null));
+  const rows: (Node | null)[] = [];
+  if (p?.candidates.length) {
+    rows.push(h('div', { class: 'pm-head' }, 'Projects in this folder'));
+    for (const c of p.candidates) rows.push(item(c.name, c.rel, () => vscode.postMessage({ type: 'setProject', folder: c.path }), { current: c.current }));
+  }
+  rows.push(item('Browse for a folder…', null, () => vscode.postMessage({ type: 'chooseProject' })));
+  rows.push(item('Whole workspace', 'every folder together', () => vscode.postMessage({ type: 'setProject', whole: true }), { current: p?.whole }));
+  if (p && !p.needsChoice) {
+    rows.push(h('div', { class: 'pm-sep' }));
+    rows.push(item('Configure sources…', p.sources || 'where the RTL comes from', () => vscode.postMessage({ type: 'configureSources' })));
+  }
+  projMenu.replaceChildren(...rows.filter((r): r is Node => !!r));
+  projMenu.hidden = false;
+  const r = anchor.getBoundingClientRect();
+  projMenu.style.left = `${Math.max(8, r.left)}px`;
+  projMenu.style.top = `${r.bottom + 4}px`;
+  (projMenu.querySelector('.pm-item.current, .pm-item') as HTMLElement | null)?.focus();
+}
+window.addEventListener('pointerdown', e => { if (!projMenu.hidden && !(e.target as Element).closest('.proj-menu, .crumb.proj')) projMenu.hidden = true; });
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && !projMenu.hidden) projMenu.hidden = true; });
+
+/** Empty state when several projects were found and none is open yet. */
+function projectChooser(p: ProjectState) {
+  return h('div', { class: 'chooser' },
+    h('h2', {}, 'Choose a project to open'),
+    h('p', { class: 'muted' }, `This folder holds ${p.candidates.length} RTL projects. Each opens on its own, with its own verification runs and notes.`),
+    h('ul', { class: 'chooser-list' }, ...p.candidates.map(c => h('li', {},
+      h('button', { class: 'chooser-row', onclick: () => vscode.postMessage({ type: 'setProject', folder: c.path }) },
+        icon('repo'), h('span', { class: 'cr-name' }, c.name), h('span', { class: 'cr-path mono' }, c.rel))))),
+    h('div', { class: 'chooser-more' },
+      h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'chooseProject' }) }, 'Browse for another folder'),
+      h('button', { class: 'link', onclick: () => vscode.postMessage({ type: 'setProject', whole: true }) }, 'Open the whole workspace together')));
+}
+
+// ---------------------------------------------------------------- source issues
+
+const ISSUE_KIND: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', sources: 'Sources:' };
+function openIssueCount() { return (view?.issues ?? []).filter(i => !i.checked).length; }
+
+/** Hatching and a rule-check diamond on blocks whose drawing may be incomplete. Neutral ink, never a finding colour. */
+function drawIssues(msg: ViewMsg) {
+  const marks = msg.issueMarks;
+  moduleIssuesChip.hidden = !marks?.module;
+  if (marks?.module) {
+    moduleIssuesChip.replaceChildren(h('span', { class: 'diamond', 'aria-hidden': 'true' }),
+      `${marks.module} source issue${marks.module === 1 ? '' : 's'} in ${msg.graph.module}: parts of this drawing may be missing`);
+    moduleIssuesChip.onclick = () => { tab = 'issues'; if (!drawerOpen) { drawerOpen = true; body.classList.remove('drawer-closed'); persist(); } renderDrawer(); };
+  }
+  for (const [id, m] of Object.entries(marks?.nodes ?? {})) {
+    const n = nodeById.get(id);
+    if (!n) continue;
+    const g = s('g', { class: `issue-mark${m.inside ? ' inside' : ''}`, role: 'button', tabindex: 0,
+      'aria-label': `${m.count} source issue${m.count === 1 ? '' : 's'} ${m.inside ? 'inside' : 'in'} ${n.label}` });
+    if (!m.inside) g.append(s('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 3, class: 'hatch' }));
+    const cx = n.x, cy = n.y + n.h, r = 9;
+    g.append(s('path', { d: `M${cx} ${cy - r}L${cx + r} ${cy}L${cx} ${cy + r}L${cx - r} ${cy}Z`, class: 'diamond-mark' }));
+    g.append(text(cx, cy + 3.5, String(m.count), 'diamond-t', 'middle'));
+    const open = (ev: Event) => { ev.stopPropagation(); tab = 'issues'; if (!drawerOpen) { drawerOpen = true; body.classList.remove('drawer-closed'); persist(); } renderDrawer(); };
+    g.addEventListener('click', open);
+    g.addEventListener('keydown', ev => { if ((ev as KeyboardEvent).key === 'Enter') open(ev); });
+    g.addEventListener('pointermove', ev => {
+      const list = (msg.issues ?? []).filter(i => !i.checked && (i.modules.includes(n.sub ?? '') || m.inside));
+      showTip(ev, h('div', {},
+        h('div', { class: 'tip-title' }, m.inside ? `Source issues inside ${n.label}` : `Source issues in ${n.sub}`),
+        ...list.filter(i => !m.inside || !i.modules.includes(n.sub ?? '')).slice(0, 4).map(i => h('div', { class: 'tip-f' }, h('span', { class: 'diamond sm', 'aria-hidden': 'true' }), `${ISSUE_KIND[i.kind]}: ${i.title}`)),
+        h('div', { class: 'tip-hint' }, m.inside ? 'Somewhere below this block. Click to see the list.' : 'This block may be drawn incomplete. Click to see the list.')));
+    });
+    g.addEventListener('pointerleave', hideTip);
+    gMarks.append(g);
+  }
+}
+
+/** The checklist: tick issues off as you go. Ticks last until VS Code closes. */
+function issuesPanel() {
+  const all = view?.issues ?? [];
+  const open = all.filter(i => !i.checked), done = all.filter(i => i.checked);
+  const wrap = h('div', { class: 'issues-panel' },
+    h('p', { class: 'muted small pad issues-intro' },
+      'Problems reading the RTL. Blocks they affect are hatched on the diagram and may be drawn incomplete. A syntax error is reported where it was noticed; the mistake is often just before, such as a missing \';\' on the line above. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'));
+  const row = (i: IssueRow) => {
+    const id = `iss-${Math.abs([...i.key].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7))}`;
+    const cb = h('input', { type: 'checkbox', id, checked: i.checked }) as HTMLInputElement;
+    cb.addEventListener('change', () => vscode.postMessage({ type: 'checkIssue', key: i.key, checked: cb.checked }));
+    return h('li', { class: `issue${i.checked ? ' checked' : ''}` },
+      cb,
+      h('div', { class: 'issue-main' },
+        h('label', { for: id, class: 'issue-title' }, h('span', { class: 'issue-kind' }, ISSUE_KIND[i.kind]), ' ', i.title),
+        i.detail ? h('div', { class: 'issue-detail' }, i.detail) : null,
+        i.file ? h('button', { class: 'link mono small', onclick: () => vscode.postMessage({ type: 'openFile', file: i.file, line: Math.max(0, (i.line ?? 1) - 1), rel: i.rel }) },
+          `${i.rel ?? i.file}${i.line ? `:${i.line}` : ''}`) : null));
+  };
+  if (open.length) wrap.append(h('ul', { class: 'issue-list' }, ...open.map(row)));
+  else wrap.append(h('p', { class: 'pad clean-title' }, 'All issues checked'));
+  if (done.length) {
+    wrap.append(h('div', { class: 'fgroup issue-done-head' }, h('span', {}, `Checked (${done.length})`),
+      h('button', { class: 'link small', onclick: () => vscode.postMessage({ type: 'uncheckIssues' }) }, 'Uncheck all')));
+    wrap.append(h('ul', { class: 'issue-list' }, ...done.map(row)));
+  }
+  return wrap;
+}
+
 // ---------------------------------------------------------------- messages
 window.addEventListener('message', ev => {
   const m = ev.data;
@@ -1283,15 +1429,26 @@ window.addEventListener('message', ev => {
     }
     case 'empty':
       view = null;
-      gEdges.replaceChildren(); gNodes.replaceChildren(); gMarks.replaceChildren();
+      project = m.project ?? project;
+      gEdges.replaceChildren(); gNodes.replaceChildren(); gMarks.replaceChildren(); gNotes.replaceChildren();
+      stageChips.querySelectorAll('button').forEach(b => (b as HTMLElement).hidden = true);
+      minimap.hidden = true;
+      crumbsEl.replaceChildren(projectChip());
       overlay.hidden = false;
-      overlay.replaceChildren(h('div', { class: 'empty' },
-        h('h2', {}, m.scanning ? 'Reading the RTL…' : m.error ? 'Could not parse the RTL' : 'No SystemVerilog modules found'),
-        h('p', { class: 'muted' }, m.scanning ? 'Parsing source files with Verible.' : m.error ?? 'Add a Bender.yml, set rtlDiagram.filelists, or adjust rtlDiagram.include, then rescan.'),
-        m.sourceMode ? h('p', { class: 'muted mono' }, m.sourceMode) : null,
-        m.veribleMissing ? h('div', { class: 'actions center' },
-          h('button', { class: 'act primary', onclick: () => vscode.postMessage({ type: 'openSetting', key: 'rtlDiagram.veriblePath' }) }, 'Set Verible path…'),
-          h('button', { class: 'act', onclick: () => vscode.postMessage({ type: 'refresh' }) }, 'Rescan')) : null));
+      if (project?.needsChoice) {
+        overlay.replaceChildren(projectChooser(project));
+      } else {
+        overlay.replaceChildren(h('div', { class: 'empty' },
+          h('h2', {}, m.scanning ? 'Reading the RTL…' : m.error ? 'Could not read the RTL' : 'No SystemVerilog modules found'),
+          h('p', { class: 'muted' }, m.scanning ? 'Parsing source files with Verible.' : m.error ?? `Nothing was found in ${project?.label ?? 'this folder'}. Check where the RTL comes from, or open another project.`),
+          m.sourceMode ? h('p', { class: 'muted mono' }, m.sourceMode) : null,
+          m.veribleMissing ? h('div', { class: 'actions center' },
+            h('button', { class: 'act primary', onclick: () => vscode.postMessage({ type: 'openSetting', key: 'rtlDiagram.veriblePath' }) }, 'Set Verible path…'),
+            h('button', { class: 'act', onclick: () => vscode.postMessage({ type: 'refresh' }) }, 'Rescan'))
+            : !m.scanning ? h('div', { class: 'actions center' },
+              h('button', { class: 'act primary', onclick: () => vscode.postMessage({ type: 'configureSources' }) }, 'Configure sources…'),
+              h('button', { class: 'act', onclick: () => vscode.postMessage({ type: 'chooseProject' }) }, 'Open another project…')) : null));
+      }
       renderDrawer();
       break;
   }

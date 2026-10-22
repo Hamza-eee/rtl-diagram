@@ -50,18 +50,23 @@
       },
       {
         "view": "rtlDiagram.hierarchy",
-        "contents": "No SystemVerilog modules found yet.\n[Choose project folder](command:rtlDiagram.chooseProject)\n[Rescan](command:rtlDiagram.refresh)\nSources come from Bender.yml, a .f filelist, or the rtlDiagram.include glob.",
-        "when": "!rtlDiagram.veribleMissing"
+        "when": "rtlDiagram.needsProject && !rtlDiagram.veribleMissing",
+        "contents": "This folder holds several RTL projects. Choose the one to open; its RTL, verification runs and notes are shown on their own.\n[Open a project](command:rtlDiagram.chooseProject)"
+      },
+      {
+        "view": "rtlDiagram.hierarchy",
+        "contents": "No SystemVerilog modules found in this project.\n[Configure sources](command:rtlDiagram.configureSources)\n[Open another project](command:rtlDiagram.chooseProject)\nSources come from Bender.yml, a .f filelist, or all .sv/.v files.",
+        "when": "!rtlDiagram.veribleMissing && !rtlDiagram.needsProject"
       },
       {
         "view": "rtlDiagram.runs",
-        "contents": "No verification runs found. Runs are read from reports/<run_id>/run.json.\n[Open a run folder](command:rtlDiagram.openRun)"
+        "contents": "No verification runs found in this project. Runs are read from reports/<run_id>/run.json.\n[Open a run folder](command:rtlDiagram.openRun)"
       }
     ],
     "commands": [
       {
         "command": "rtlDiagram.chooseProject",
-        "title": "Choose Project Folder\u2026",
+        "title": "Open Project\u2026",
         "category": "RTL Diagram",
         "icon": "$(repo)"
       },
@@ -118,6 +123,12 @@
         "command": "rtlDiagram.toggleLive",
         "title": "Toggle Live Updates",
         "category": "RTL Diagram"
+      },
+      {
+        "command": "rtlDiagram.configureSources",
+        "title": "Configure Sources\u2026",
+        "category": "RTL Diagram",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -126,6 +137,11 @@
           "command": "rtlDiagram.chooseProject",
           "when": "view == rtlDiagram.hierarchy",
           "group": "navigation@0"
+        },
+        {
+          "command": "rtlDiagram.configureSources",
+          "when": "view == rtlDiagram.hierarchy",
+          "group": "navigation@1"
         },
         {
           "command": "rtlDiagram.openDiagram",

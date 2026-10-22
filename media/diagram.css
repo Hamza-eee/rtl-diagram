@@ -337,7 +337,7 @@ ul.plain li { padding: 2px 0; }
 .nb:hover .nb-shape, .nb:focus-visible .nb-shape { filter: brightness(1.1); }
 .far .nb { display: none; }
 
-.module-notes { position: absolute; left: 12px; top: 12px; z-index: 5; border: 0; border-radius: 12px; padding: 3px 10px 3px 24px; font-size: 12px; font-weight: 600; cursor: pointer;
+.module-notes { position: relative; border: 0; border-radius: 12px; padding: 3px 10px 3px 24px; font-size: 12px; font-weight: 600; cursor: pointer;
   background: color-mix(in srgb, var(--nk) 16%, var(--panel)); color: var(--fg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nk) 45%, transparent); }
 .module-notes::before { content: ''; position: absolute; left: 9px; top: 50%; width: 9px; height: 7px; margin-top: -4px; border-radius: 2px; background: var(--nk); }
 .module-notes.resolved { opacity: .7; }
@@ -392,3 +392,72 @@ ul.plain li { padding: 2px 0; }
 .fresh-warn ul.plain { margin: 4px 0 0; }
 
 .actions.center { justify-content: center; }
+
+/* ---------- project switcher (first breadcrumb segment) */
+.crumb.proj { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 3px 7px 3px 6px;
+  box-shadow: inset 0 0 0 1px var(--line); border-radius: 5px; }
+.crumb.proj:hover { box-shadow: inset 0 0 0 1px var(--accent); background: var(--hover); }
+.crumb.proj .caret { font-size: 10px; color: var(--muted); }
+.crumb.proj.needs { box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.proj-menu { position: fixed; z-index: 50; min-width: 260px; max-width: 420px; max-height: 70vh; overflow: auto; padding: 4px;
+  background: var(--vscode-menu-background, var(--panel)); color: var(--vscode-menu-foreground, var(--fg));
+  border: 1px solid var(--vscode-menu-border, var(--line)); border-radius: 6px; box-shadow: 0 10px 28px rgba(0,0,0,.24); }
+.proj-menu[hidden] { display: none; }
+.pm-head { padding: 6px 10px 4px 30px; font-size: 11.5px; color: var(--muted); }
+.pm-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.pm-item { display: flex; gap: 6px; width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 10px 6px 6px; border-radius: 4px; cursor: pointer; }
+.pm-item:hover, .pm-item:focus-visible { background: var(--vscode-menu-selectionBackground, var(--hover)); color: var(--vscode-menu-selectionForeground, inherit); outline: none; }
+.pm-check { width: 18px; flex: none; text-align: center; color: var(--accent); }
+.pm-text { display: flex; flex-direction: column; min-width: 0; }
+.pm-label { font-weight: 500; }
+.pm-item.current .pm-label { font-weight: 650; }
+.pm-sub { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- choose-a-project empty state */
+.chooser { width: min(520px, calc(100% - 40px)); padding: 24px 4px; }
+.chooser h2 { font-size: 16px; margin: 0 0 4px; }
+.chooser > p { margin: 0 0 14px; }
+.chooser-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.chooser-list li { border-bottom: 1px solid var(--line); }
+.chooser-row { display: grid; grid-template-columns: 18px auto 1fr; align-items: center; gap: 10px; width: 100%; padding: 10px 8px; border: 0; background: transparent; cursor: pointer; text-align: left; }
+.chooser-row:hover, .chooser-row:focus-visible { background: var(--hover); outline: none; }
+.chooser-row:hover .cr-name { color: var(--accent); }
+.cr-name { font-weight: 650; }
+.cr-path { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.chooser-more { display: flex; gap: 18px; margin-top: 14px; font-size: 12.5px; }
+
+/* ---------- stage chips (module notes, module issues) */
+.stage-chips { position: absolute; left: 12px; top: 12px; z-index: 5; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.module-issues { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 4px; padding: 4px 10px 4px 8px; font-size: 12px; cursor: pointer;
+  background: var(--panel); color: var(--fg); box-shadow: inset 0 0 0 1px var(--stroke); }
+.module-issues[hidden] { display: none; }
+.module-issues:hover { box-shadow: inset 0 0 0 1.5px var(--fg); }
+
+/* ---------- source issues on the diagram: hatching + rule-check diamond, in ink (never a finding colour) */
+.hatch-line { stroke: var(--stroke); stroke-width: 1.1; opacity: .35; }
+.issue-mark .hatch { fill: url(#hatch); stroke: none; pointer-events: none; }
+.issue-mark { cursor: pointer; }
+.diamond-mark { fill: var(--fg); stroke: var(--paper); stroke-width: 2; paint-order: stroke; }
+.issue-mark.inside .diamond-mark { fill: var(--paper); stroke: var(--fg); stroke-width: 1.4; }
+.diamond-t { font: 700 9.5px var(--ui); fill: var(--paper); pointer-events: none; }
+.issue-mark.inside .diamond-t { fill: var(--fg); }
+.issue-mark:hover .diamond-mark, .issue-mark:focus-visible .diamond-mark { stroke: var(--accent); stroke-width: 2.5; }
+.far .issue-mark .diamond-t { display: none; }
+.diamond { width: 9px; height: 9px; transform: rotate(45deg); background: var(--fg); flex: none; display: inline-block; }
+.diamond.sm { width: 7px; height: 7px; }
+.count.issues { background: var(--fg); color: var(--paper); }
+
+/* ---------- issues checklist */
+.issues-intro { margin: 0; }
+.issue-list { list-style: none; margin: 0; padding: 0 8px 6px; }
+.issue { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 8px; padding: 8px 6px; border-radius: 5px; }
+.issue:hover { background: var(--hover); }
+.issue input { margin: 3px 0 0; accent-color: var(--accent); cursor: pointer; }
+.issue-main { min-width: 0; }
+.issue-title { display: block; cursor: pointer; line-height: 1.4; }
+.issue-kind { font-weight: 650; }
+.issue-detail { color: var(--muted); font-size: 12px; margin: 2px 0; word-break: break-word; }
+.issue.checked .issue-title, .issue.checked .issue-detail { text-decoration: line-through; opacity: .55; }
+.issue-done-head { display: flex; justify-content: space-between; align-items: baseline; padding-right: 14px; }
+
+.minimap[hidden] { display: none; }

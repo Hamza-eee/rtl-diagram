@@ -16,7 +16,12 @@ import * as os from 'os';
 import { MAX_NOTE_LENGTH, Note, NoteAnchor, NoteKind, NOTE_KINDS, StoredNote, isAnchor, isInside, isNote, loadNotes, newNoteId, safeNotesFolder, writeNote } from './notes/notes';
 import * as fs from 'fs';
 import { Serial } from './util/serial';
+import { FileErrors, ISSUE_KIND_LABEL, SourceIssue, collectIssues } from './issues';
+import { findProjects } from './util/projects';
+import { expandGlob } from './util/glob';
 import { Freshness, GitRunner, runFreshness } from './findings/freshness';
+
+export interface SourcesOverride { mode: 'auto' | 'bender' | 'filelist' | 'glob'; filelists?: string[]; include?: string }
 
 export class Store implements vscode.Disposable {
   design?: Design;
@@ -38,7 +43,12 @@ export class Store implements vscode.Disposable {
   /** RTL files saved while live updates are paused (the diagram is not redrawn until refreshed). */
   pending = new Set<string>();
 
-  private readonly _onDidChange = new vscode.EventEmitter<'design' | 'runs' | 'active' | 'notes' | 'pending'>();
+  /** Problems reading the RTL, tied to the modules they affect. */
+  issues: SourceIssue[] = [];
+  /** Issues the user ticked off. Session only: kept across rescans, forgotten when VS Code closes. */
+  checkedIssues = new Set<string>();
+
+  private readonly _onDidChange = new vscode.EventEmitter<'design' | 'runs' | 'active' | 'notes' | 'pending' | 'issues'>();
   readonly onDidChange = this._onDidChange.event;
 
   constructor(private ctx: vscode.ExtensionContext) {}
@@ -57,32 +67,35 @@ export class Store implements vscode.Disposable {
   private async scanDesignOnce(): Promise<void> {
     const roots = this.roots();
     const c = this.cfg();
+    const ov = this.sourcesOverride();
     this.scanning = true;
     this.lastError = undefined;
     try {
       const src = discoverSources({
         roots,
-        mode: c.get('sourceMode', 'auto'),
+        mode: ov?.mode ?? c.get('sourceMode', 'auto'),
         benderRoots: c.get('benderRoots', []),
         benderTargets: c.get('benderTargets', []),
-        filelists: c.get('filelists', []),
-        include: c.get('include', '**/*.{sv,v}'),
+        filelists: ov?.filelists ?? c.get('filelists', []),
+        include: ov?.include ?? c.get('include', '**/*.{sv,v}'),
         exclude: c.get('exclude', []),
       });
+      if (ov) src.label += ' · set for this project';
       this.sources = src;
       const files = src.files.map(f => f.file);
       const pkgOf = new Map(src.files.map(f => [f.file, f.pkg]));
       const parsed = await parseFiles(c.get('veriblePath', 'verible-verilog-syntax'), files);
       const mods: Module[] = [];
-      const issues: ParseIssue[] = src.issues.map(m => ({ file: '', message: m }));
+      const fileErrors: FileErrors[] = [];
       for (const pf of parsed) {
-        for (const e of pf.errors) issues.push({ file: pf.file, message: `syntax error: ${e.text ?? e.phase ?? ''}`.trim(), line: e.line });
-        for (const m of extractModules(pf)) { m.pkg = pkgOf.get(pf.file); mods.push(m); }
+        const fm = extractModules(pf);
+        for (const m of fm) { m.pkg = pkgOf.get(pf.file); mods.push(m); }
+        if (pf.errors.length) fileErrors.push({ file: pf.file, errors: pf.errors, parsed: !!pf.tree, modules: fm.map(m => m.name) });
       }
+      const issues: ParseIssue[] = [];
       this.design = buildDesign(mods, files, issues, src.label);
-      for (const [name, fs] of Object.entries(this.design.duplicates)) {
-        issues.push({ file: fs[0], message: `module ${name} is declared in ${fs.length} files; using the first: ${fs.map(f => path.basename(f)).join(', ')}` });
-      }
+      this.issues = collectIssues(this.design, fileErrors, src.issues, roots);
+      for (const i of this.issues) issues.push({ file: i.file ?? '', message: `${ISSUE_KIND_LABEL[i.kind]} ${i.title}${i.detail ? `. ${i.detail}` : ''}`, line: i.line });
       this.resolveAll();
     } catch (e: any) {
       this.lastError = e.message;
@@ -122,18 +135,80 @@ export class Store implements vscode.Disposable {
 
   // ---------------------------------------------------------------- project folder
 
-  /** The chosen project folder (setting first, then the per-workspace choice), if it still exists. */
-  project(): string | undefined {
-    const p = this.cfg().get<string>('projectFolder', '') || this.ctx.workspaceState.get<string>('projectFolder');
+  /** RTL projects (git repositories containing RTL) found under the workspace folders. */
+  candidates: string[] = [];
+
+  workspaceRoots(): string[] {
+    return (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
+  }
+
+  async detectProjects() {
+    this.candidates = await findProjects(this.workspaceRoots());
+    void vscode.commands.executeCommand('setContext', 'rtlDiagram.needsProject', this.needsProject());
+  }
+
+  private settingProject(): string | undefined {
+    const p = this.cfg().get<string>('projectFolder', '');
     if (!p) return undefined;
-    const abs = path.isAbsolute(p) ? p : path.resolve(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '.', p);
+    const abs = path.isAbsolute(p) ? p : path.resolve(this.workspaceRoots()[0] ?? '.', p);
     return fs.existsSync(abs) ? abs : undefined;
   }
 
-  /** Folders everything is read from: the project folder if one is chosen, else every workspace folder. */
+  /** The stored choice: a folder, '*' for the whole workspace, or undefined if never chosen. */
+  private storedChoice(): string | undefined {
+    const c = this.ctx.workspaceState.get<string>('projectFolder');
+    return c === '*' || (c && fs.existsSync(c)) ? c : undefined;
+  }
+
+  /**
+   * The project folder in use: the setting, else the remembered choice, else the only project
+   * found. Undefined means the whole workspace (explicitly chosen, or no projects detected).
+   */
+  project(): string | undefined {
+    const s = this.settingProject();
+    if (s) return s;
+    const c = this.storedChoice();
+    if (c) return c === '*' ? undefined : c;
+    return this.candidates.length === 1 ? this.candidates[0] : undefined;
+  }
+
+  /** Several projects found and none chosen: ask, rather than mixing them or picking one. */
+  needsProject(): boolean {
+    return !this.settingProject() && !this.storedChoice() && this.candidates.length > 1;
+  }
+
+  /** Folders everything is read from: none while a choice is needed, else the project or the whole workspace. */
   roots(): string[] {
+    if (this.needsProject()) return [];
     const p = this.project();
-    return p ? [p] : (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
+    return p ? [p] : this.workspaceRoots();
+  }
+
+  projectLabel(): string {
+    if (this.needsProject()) return 'choose a project';
+    const p = this.project();
+    return p ? path.basename(p) : 'whole workspace';
+  }
+
+  // ---------------------------------------------------------------- per-project sources
+
+  private sourcesKey(): string { return `sources:${this.project() ?? '*'}`; }
+
+  /** Sources chosen in the UI for the current project (stored by the extension, not in the repo). */
+  sourcesOverride(): SourcesOverride | undefined {
+    return this.ctx.workspaceState.get<SourcesOverride>(this.sourcesKey());
+  }
+
+  async setSourcesOverride(o: SourcesOverride | undefined) {
+    await this.ctx.workspaceState.update(this.sourcesKey(), o);
+    await this.rescanDesign();
+  }
+
+  /** Filelists (.f / .flist) in the project, for the Configure Sources menu. */
+  findFilelists(): string[] {
+    const out: string[] = [];
+    for (const r of this.roots()) out.push(...expandGlob(r, '**/*.{f,flist}'));
+    return out.slice(0, 200);
   }
 
   inScope(file: string): boolean {
@@ -143,8 +218,10 @@ export class Store implements vscode.Disposable {
     });
   }
 
+  /** Use `folder` as the project; undefined means the whole workspace (remembered as such). */
   async setProject(folder: string | undefined) {
-    await this.ctx.workspaceState.update('projectFolder', folder);
+    await this.ctx.workspaceState.update('projectFolder', folder ?? '*');
+    void vscode.commands.executeCommand('setContext', 'rtlDiagram.needsProject', false);
     await this.ctx.workspaceState.update('view', undefined);
     this.activeRun = undefined;
     await Promise.all([this.rescanDesign(), this.rescanRuns()]);
@@ -284,6 +361,16 @@ export class Store implements vscode.Disposable {
   moduleChanged(module: string | undefined): boolean {
     const file = module && this.design?.modules[module]?.file;
     return !!file && !!this.freshness?.changed.includes(path.resolve(file));
+  }
+
+  setIssueChecked(key: string, checked: boolean) {
+    if (checked) this.checkedIssues.add(key); else this.checkedIssues.delete(key);
+    this._onDidChange.fire('issues');
+  }
+
+  clearIssueChecks() {
+    this.checkedIssues.clear();
+    this._onDidChange.fire('issues');
   }
 
   // ---------------------------------------------------------------- live updates
