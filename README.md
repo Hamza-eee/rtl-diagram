@@ -49,7 +49,7 @@ If you opened a folder that holds several projects (for example a parent folder 
 | Trace a net | Click a pin, wire or net label |
 | See a block's parameters and links | Click the block; the **Details** tab has *Go to instance* and *Go to definition* |
 | Fit, zoom | `F`, `+`, `-`, `0` for 100%, or the mouse wheel / trackpad pinch |
-| Find a block or port | `/`, then type |
+| Find a block or port | Press `/` and type; Enter jumps to it, Esc closes |
 | Switch theme | The toolbar button cycles Auto, Light and Dark |
 | Pause redrawing | The toolbar's **Live** button. While paused, the diagram stays as drawn and a banner lists the RTL files saved since, with *Refresh* |
 | Add a note | Right-click a port, pin, wire, block or empty space |
@@ -113,6 +113,7 @@ Problems reading the RTL are shown on the diagram, not just in a list:
 - **Syntax errors**: the block whose file has the error is hatched. If Verible couldn't read the file at all, its modules are missing, and the "not found" entry says which broken file declares them. Only the first error of such a file is listed, since the ones after it are usually knock-on effects.
 - **Modules declared more than once**: the first one in source order is used.
 - **Modules not found**: an instance of a module that isn't in the files read (a vendor primitive, a missing dependency, or a file outside the sources).
+- **Pins left unconnected without saying so** (*Not connected*): a `.*` port with no signal of the same name in the parent (SystemVerilog rejects this at elaboration), a named or positional connection to a port the module doesn't have, and an input left out of the connection list. The pin is drawn in magenta with the reason on hover. An explicit `.p()` is taken as deliberate and not reported.
 - **Source problems**: unreadable Bender manifests, globs that matched nothing, missing filelist entries.
 
 The **Issues** tab lists them as a checklist with links to each line. Tick issues off as you go: ticks last until VS Code closes, and an issue that gets fixed disappears by itself. A syntax error is reported where Verible noticed it; the actual mistake is often just before, such as a missing `;` on the line above.

@@ -16,6 +16,8 @@ All notable changes to this extension are listed here.
 - An expression in a port connection (`.push(a & ~b)`) is drawn as one box feeding the pin, instead of one wire per signal into the same pin.
 - Pins tied to 0 show a ground symbol and pins tied to all ones a supply bar; other constants keep their value.
 - The diagram's bottom bar shows **Sources: …** as a button that opens Configure sources; the status-bar list has it too.
+- *Not connected* issues: `.*` ports with no same-named signal, connections to ports that don't exist, extra positional connections and inputs left out are listed and the pins drawn in magenta.
+- Find is no longer a toolbar box: press `/` to open it over the diagram.
 - Layout: fewer wire crossings, a spacing setting (Compact / Normal / Roomy), and hovering a block fades unrelated wires.
 - Clear setup requirements and an actionable message when Verible is missing.
 

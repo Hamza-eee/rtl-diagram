@@ -93,7 +93,7 @@ button { font: inherit; color: inherit; }
 
 .find-wrap { position: relative; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--input-line); background: var(--input-bg); border-radius: 5px; color: var(--muted); }
 .find { width: 170px; border: 0; outline: none; background: transparent; color: var(--input-fg); font: 12.5px var(--ui); }
-.find-results { position: absolute; top: 32px; right: 0; width: 300px; margin: 0; padding: 4px; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 20; }
+.find-results { position: absolute; top: 32px; left: 0; width: 300px; margin: 0; padding: 4px; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 20; }
 .find-results li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; border-radius: 4px; cursor: pointer; color: var(--fg); }
 .find-results li.on, .find-results li:hover { background: var(--hover); }
 .find-results li.none { cursor: default; color: var(--muted); }
@@ -490,3 +490,14 @@ ul.plain li { padding: 2px 0; }
 /* bottom bar: the sources are a button (opens Configure sources) */
 .st-sources { font-family: var(--ui); }
 .st-sources .caret { font-size: 10px; color: var(--muted); }
+
+/* pins left unconnected without saying so (.* with no matching signal, unknown port, input left out) */
+.pin.pin-issue .nc { stroke: var(--c-issue); stroke-width: 2.2; }
+.pin.pin-issue .pin-label { fill: var(--c-issue); font-weight: 650; }
+.pin.pin-issue .stub, .pin.pin-issue .pin-arrow { stroke: var(--c-issue); fill: var(--c-issue); }
+.issue-note { display: flex; gap: 6px; align-items: baseline; margin: 6px 0; font-size: 12px; }
+
+/* Find, opened with '/' over the top of the diagram */
+.find-pop { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 30; height: 32px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.find-pop[hidden] { display: none; }
+.find-pop .find { width: 260px; }

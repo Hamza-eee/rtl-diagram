@@ -5,9 +5,9 @@ import * as path from 'path';
 import { parseFiles } from '../../src/sv/verible';
 import { extractModules } from '../../src/sv/extract';
 import { buildDesign } from '../../src/elab';
-import { FileErrors, collectIssues, declaredModules, issueMarksFor } from '../../src/issues';
+import { FileErrors, collectIssues, connectionIssues, declaredModules, issueMarksFor } from '../../src/issues';
 import { Module } from '../../src/model';
-import { VERIBLE } from './helpers';
+import { VERIBLE, designOf } from './helpers';
 
 // A small design with one recoverable syntax error, one unreadable file, a duplicate and a missing module.
 async function brokenDesign() {
@@ -76,12 +76,53 @@ describe('source issues', () => {
   it('marks affected blocks directly or as "inside", and hides checked issues', async () => {
     const { dir, d, issues } = await brokenDesign();
     const top = issueMarksFor(d, issues, new Set(), 'top');
-    assert.deepStrictEqual(top.nodes['inst:u_cell'], { count: 1, inside: false });   // vendor_cell not found
+    assert.deepStrictEqual(top.nodes['inst:u_cell'], { count: 1, inside: false, hatch: true });   // vendor_cell not found
     if (issues.some(i => i.modules.includes('leaf'))) assert.strictEqual(top.nodes['inst:u_mid']?.inside, true);
     const user = issueMarksFor(d, issues, new Set(), 'user');
     assert.strictEqual(user.nodes['inst:u_core'].inside, false);
     const checked = new Set(issues.filter(i => i.modules.includes('core')).map(i => i.key));
     assert.strictEqual(issueMarksFor(d, issues, checked, 'user').nodes['inst:u_core'], undefined);
+    fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('connection issues', () => {
+  async function wired() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rtl-conn-'));
+    const w = (n: string, t: string) => { fs.writeFileSync(path.join(dir, n), t); return path.join(dir, n); };
+    const files = [
+      w('core.sv', 'module core(input logic clk, input logic rst_n, input logic en, output logic q);\nendmodule\n'),
+      w('top.sv', [
+        'module top(input logic clk_i, input logic rst_ni, input logic en, output logic q1, q2, q3, q4, q5);',
+        '  core u_star (.*, .q(q1));',                                  // clk, rst_n: no such signals in top
+        '  core u_named (.clk(clk_i), .rst_n(rst_ni), .en(en), .q(q2), .bogus(en));',
+        '  core u_pos (clk_i, rst_ni, en, q3, en);',                     // one positional too many
+        '  core u_short (.clk(clk_i), .q(q4));',                         // rst_n and en left out
+        '  core u_open (.clk(clk_i), .rst_n(rst_ni), .en(), .q(q5));',   // explicit open: deliberate
+        'endmodule', ''].join('\n')),
+    ];
+    const d = await designOf(files);
+    return { dir, d, issues: connectionIssues(d) };
+  }
+
+  it('reports pins left unconnected without saying so, and nothing else', async () => {
+    const { dir, issues } = await wired();
+    const got = issues.map(i => `${i.inst!.key}.${i.inst!.port}`).sort();
+    assert.deepStrictEqual(got, ['u_named.bogus', 'u_pos.#4', 'u_short.en', 'u_short.rst_n', 'u_star.clk', 'u_star.rst_n']);
+    const star = issues.find(i => i.inst!.key === 'u_star' && i.inst!.port === 'clk')!;
+    assert.match(star.detail!, /top has no signal named clk/);
+    assert.strictEqual(star.line, 2);
+    assert.match(issues.find(i => i.inst!.port === '#4')!.detail!, /has only 4 ports/);
+    assert.match(issues.find(i => i.inst!.port === 'bogus')!.detail!, /no port named bogus/);
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it('marks the instance and pin in the parent view without hatching it', async () => {
+    const { dir, d, issues } = await wired();
+    const m = issueMarksFor(d, issues, new Set(), 'top');
+    assert.deepStrictEqual(m.nodes['inst:u_star'], { count: 2, inside: false, hatch: false });
+    assert.ok(m.pins['inst:u_star/clk'].startsWith('Not connected: u_star.clk'));
+    assert.strictEqual(m.module, 0);
     fs.rmSync(dir, { recursive: true });
   });
 });

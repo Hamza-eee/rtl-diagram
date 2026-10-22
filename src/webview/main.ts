@@ -23,12 +23,13 @@ interface NotesMsg { marks: Record<string, NoteMark>; here: string[]; all: NoteV
 interface LiveState { on: boolean; pending: string[] }
 interface ProjectRow { path: string; name: string; rel: string; current: boolean }
 interface ProjectState { label: string; needsChoice: boolean; sources: string; candidates: ProjectRow[]; recent: ProjectRow[] }
-type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'sources';
+type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'unconnected' | 'sources';
 interface IssueRow {
   key: string; kind: IssueKind; title: string; detail?: string; modules: string[];
   file?: string; line?: number; col?: number; rel?: string; checked: boolean;
+  inst?: { module: string; key: string; port: string };
 }
-interface IssueMarks { module: number; nodes: Record<string, { count: number; inside: boolean }> }
+interface IssueMarks { module: number; nodes: Record<string, { count: number; inside: boolean; hatch?: boolean }>; pins?: Record<string, string> }
 interface ViewMsg {
   graph: ViewGraph; crumbs: Crumb[]; markers: Markers; findings: FindingRow[]; notes: NotesMsg; path: string[];
   run: {
@@ -126,6 +127,8 @@ const toolbar = h('header', { class: 'toolbar' });
 const crumbsEl = h('nav', { class: 'crumbs', 'aria-label': 'Hierarchy' });
 const findInput = h('input', { class: 'find', type: 'search', placeholder: 'Find block or port', 'aria-label': 'Find block or port', spellcheck: 'false' });
 const findResults = h('ul', { class: 'find-results', role: 'listbox', hidden: true });
+// Find has no toolbar box: '/' opens it over the diagram, and it closes when done.
+const findWrap = h('div', { class: 'find-wrap find-pop', hidden: true }, icon('search'), findInput, findResults);
 const zoomLabel = h('button', { class: 'zoom-label', title: 'Reset to 100% (0)' }, '100%');
 const themeBtn = h('button', { class: 'tb-btn', title: 'Theme: follow VS Code' }, icon('theme'), h('span', { class: 'tb-btn-label' }, 'Auto'));
 const drawerBtn = h('button', { class: 'tb-btn', title: 'Toggle side panel' }, icon('drawer'));
@@ -152,7 +155,6 @@ const upBtn = h('button', { class: 'tb-btn', title: 'Up one level (Backspace)' }
 toolbar.append(
   upBtn, crumbsEl,
   h('div', { class: 'tb-spacer' }),
-  h('div', { class: 'find-wrap' }, icon('search'), findInput, findResults),
   h('div', { class: 'tb-group', role: 'group', 'aria-label': 'Zoom' },
     h('button', { class: 'tb-btn', title: 'Zoom out (−)', onclick: () => zoomBy(1 / 1.25) }, icon('minus')),
     zoomLabel,
@@ -192,7 +194,7 @@ const updateBanner = h('div', { class: 'update-banner', role: 'alert', hidden: h
   'This window still runs the previous version, so some buttons won\'t respond. Reload the window to finish: open the Command Palette and run ',
   h('span', { class: 'mono' }, 'Developer: Reload Window'), '.');
 const ctxMenu = h('div', { class: 'ctxmenu', role: 'menu', hidden: true });
-stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay, updateBanner);
+stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay, updateBanner, findWrap);
 document.body.append(projMenu);
 
 const drawer = h('aside', { class: 'drawer', 'aria-label': 'Findings and details' });
@@ -340,6 +342,7 @@ function render(msg: ViewMsg) {
   for (const n of g.nodes) drawNode(n, msg.markers);
   drawMarkers(msg);
   drawIssues(msg);
+  markIssuePins(msg);
   drawNotes(msg);
   svg.setAttribute('aria-label', `Block diagram of ${g.module}: ${g.stats.instances} instances, ${g.stats.ports} ports`);
   live = msg.live ?? live;
@@ -693,6 +696,7 @@ function pinTip(id: string) {
     h('div', { class: 'tip-title mono' }, pin.name),
     kv('direction', pin.dir), pin.range ? kv('range', pin.range) : null, pin.width ? kv('width', `${pin.width} bit${pin.width > 1 ? 's' : ''}`) : null,
     !isTerm && pin.expr !== undefined ? kv('connected', pin.expr === '' ? 'open' : pin.expr) : null,
+    view?.issueMarks.pins?.[id] ? h('div', { class: 'tip-f' }, issueGlyph('sm'), view.issueMarks.pins[id]) : null,
     h('div', { class: 'tip-hint' }, 'Click to trace the net'));
 }
 function nodeTip(n: VNode) {
@@ -783,7 +787,7 @@ function renderStatus() {
     h('button', { class: 'st-link st-sources', title: 'Where the RTL comes from: Bender, filelists (.f) or a file pattern. Click to change it for this project.',
       onclick: () => vscode.postMessage({ type: 'configureSources' }) }, icon('sources'), `Sources: ${view.sourceMode}`, h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾')),
     h('span', { class: 'st-spacer' }),
-    h('span', { class: 'st muted keys' }, 'Double-click a block to open it · double-click empty space or Backspace to go up · F fits'),
+    h('span', { class: 'st muted keys' }, 'Double-click a block to open it · double-click empty space or Backspace to go up · F fits · / finds'),
   ));
 }
 
@@ -817,7 +821,7 @@ findInput.addEventListener('keydown', e => {
   else if (e.key === 'Enter') { c[findIdx]?.act(); findInput.blur(); }
   else if (e.key === 'Escape') { findInput.value = ''; findInput.blur(); }
 });
-findInput.addEventListener('blur', () => setTimeout(() => { findResults.hidden = true; }, 100));
+findInput.addEventListener('blur', () => setTimeout(() => { findResults.hidden = true; findWrap.hidden = true; findInput.value = ''; }, 100));
 
 // keyboard
 window.addEventListener('keydown', e => {
@@ -828,7 +832,7 @@ window.addEventListener('keydown', e => {
   else if (e.key === '+' || e.key === '=') zoomBy(1.25);
   else if (e.key === '-' || e.key === '_') zoomBy(0.8);
   else if (e.key === '0') zoomLabel.click();
-  else if (e.key === '/') { e.preventDefault(); findInput.focus(); }
+  else if (e.key === '/') { e.preventDefault(); findWrap.hidden = false; findInput.focus(); }
   else if (e.key === 'Escape') select(null);
 });
 
@@ -1035,6 +1039,7 @@ function pinCard(id: string) {
     kv('direction', pin.dir), pin.range ? kv('range', h('span', { class: 'mono' }, pin.range)) : null,
     pin.width ? kv('width', `${pin.width} bit${pin.width > 1 ? 's' : ''}`) : null,
     !isTerm && node.kind === 'inst' ? kv('connected to', h('span', { class: 'mono' }, pin.open ? 'open' : pin.expr ?? '')) : null,
+    view?.issueMarks.pins?.[id] ? h('p', { class: 'issue-note' }, issueGlyph('sm'), view.issueMarks.pins[id]) : null,
     marks.length ? h('div', { class: 'pin-marks' }, ...marks.map(m => {
       const f = view!.findings.find(x => x.index === m.f);
       return h('button', { class: `frow lvl-${m.level}`, onclick: () => openFinding(m.f) }, h('span', { class: `dot lvl-${m.level}` }), h('span', { class: 'frow-main' }, h('span', { class: 'frow-top' }, h('span', { class: 'rule mono' }, f?.ruleId ?? ''), h('span', { class: 'muted' }, m.role === 'driver' ? 'direct driver of the observed signal' : m.role === 'primary' ? 'observed here' : 'context signal')), h('span', { class: 'frow-msg' }, f?.message ?? '')));
@@ -1430,7 +1435,7 @@ function projectChooser(p: ProjectState) {
 
 // ---------------------------------------------------------------- source issues
 
-const ISSUE_KIND: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', sources: 'Sources:' };
+const ISSUE_KIND: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', unconnected: 'Not connected:', sources: 'Sources:' };
 function openIssueCount() { return (view?.issues ?? []).filter(i => !i.checked).length; }
 
 /** The source-issue glyph used in HTML (chips, tooltips, the checklist). */
@@ -1454,7 +1459,7 @@ function drawIssues(msg: ViewMsg) {
     if (!n) continue;
     const g = s('g', { class: `issue-mark${m.inside ? ' inside' : ''}`, role: 'button', tabindex: 0,
       'aria-label': `${m.count} source issue${m.count === 1 ? '' : 's'} ${m.inside ? 'inside' : 'in'} ${n.label}` });
-    if (!m.inside) g.append(s('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 3, class: 'hatch' }));
+    if (m.hatch ?? !m.inside) g.append(s('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 3, class: 'hatch' }));
     // Badge on the block's bottom-left corner: "</> 2".
     const label = `</> ${m.count}`;
     const bw = 12 + label.length * 6.2, bh = 17, bx = n.x - 8, by = n.y + n.h - bh / 2;
@@ -1464,15 +1469,20 @@ function drawIssues(msg: ViewMsg) {
     g.addEventListener('click', open);
     g.addEventListener('keydown', ev => { if ((ev as KeyboardEvent).key === 'Enter') open(ev); });
     g.addEventListener('pointermove', ev => {
-      const list = (msg.issues ?? []).filter(i => !i.checked && (i.modules.includes(n.sub ?? '') || m.inside));
+      const list = (msg.issues ?? []).filter(i => !i.checked && (i.modules.includes(n.sub ?? '') || m.inside || (i.inst?.module === msg.graph.module && `inst:${i.inst.key}` === n.id)));
       showTip(ev, h('div', {},
         h('div', { class: 'tip-title' }, m.inside ? `Source issues inside ${n.label}` : `Source issues in ${n.sub}`),
         ...list.filter(i => !m.inside || !i.modules.includes(n.sub ?? '')).slice(0, 4).map(i => h('div', { class: 'tip-f' }, issueGlyph('sm'), `${ISSUE_KIND[i.kind]} ${i.title}`)),
-        h('div', { class: 'tip-hint' }, m.inside ? 'Somewhere below this block. Click to see the list.' : 'This block may be drawn incomplete. Click to see the list.')));
+        h('div', { class: 'tip-hint' }, m.inside ? 'Somewhere below this block. Click to see the list.' : m.hatch ?? true ? 'This block may be drawn incomplete. Click to see the list.' : 'A pin is left unconnected (marked in magenta). Click to see the list.')));
     });
     g.addEventListener('pointerleave', hideTip);
     gMarks.append(g);
   }
+}
+
+/** Pins that end up connected to nothing although the code doesn't say so: magenta, with the reason on hover. */
+function markIssuePins(msg: ViewMsg) {
+  for (const id of Object.keys(msg.issueMarks?.pins ?? {})) svg.querySelector(`.pin[data-pin="${CSS.escape(id)}"]`)?.classList.add('pin-issue');
 }
 
 /** The checklist: tick issues off as you go. Ticks last until VS Code closes. */
@@ -1481,9 +1491,9 @@ function issuesPanel() {
   const open = all.filter(i => !i.checked), done = all.filter(i => i.checked);
   const wrap = h('div', { class: 'issues-panel' },
     h('p', { class: 'muted small pad issues-intro' },
-      'Problems reading the RTL. Blocks they affect are hatched on the diagram and may be drawn incomplete. A syntax error is reported where it was noticed; the mistake is often just before, such as a missing \';\' on the line above. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'),
+      'Problems found while reading the RTL. Hatched blocks may be drawn incomplete; magenta pins end up unconnected although the code doesn\'t say so. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'),
     h('p', { class: 'muted small pad issues-intro' },
-      'Only syntax errors are found, not design mistakes: a misspelt or undeclared name, a missing port or a width mismatch is valid syntax. The diagram draws the RTL as written, so such a mistake shows as a wire that isn\'t connected where you expect.'));
+      'A syntax error is reported where it was noticed; the mistake is often just before, such as a missing \';\' on the line above. Design mistakes such as a misspelt name or a width mismatch are valid syntax and aren\'t reported: they show on the diagram as wires that aren\'t connected where you expect.'));
   const row = (i: IssueRow) => {
     const id = `iss-${Math.abs([...i.key].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7))}`;
     const cb = h('input', { type: 'checkbox', id, checked: i.checked }) as HTMLInputElement;
