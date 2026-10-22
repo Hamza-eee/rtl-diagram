@@ -1,7 +1,7 @@
 {
   "name": "rtl-diagram",
   "displayName": "RTL Diagram",
-  "description": "SystemVerilog block diagrams that catch wiring mistakes as you save, with verification findings and team notes on the ports they name.",
+  "description": "SystemVerilog block diagrams for visually tracking design issues: connection checks, verification failures and team notes, shown on the ports and blocks they concern.",
   "version": "0.1.0",
   "publisher": "rtl-diagram",
   "license": "Apache-2.0",

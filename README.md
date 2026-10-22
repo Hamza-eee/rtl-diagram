@@ -1,6 +1,6 @@
 # RTL Diagram
 
-**See your SystemVerilog as a block diagram, catch wiring mistakes before you simulate, and put verification failures on the ports they name.**
+**See your SystemVerilog as a block diagram, and visually track design issues on it, from connection mistakes to verification failures on the ports they name.**
 
 > **Beta.** The diagram, navigation and static checks are ready to use. Showing test failures on the diagram works from reports in one documented format. The script that creates those reports automatically from cocotb, AVL, Verilator or SystemVerilog/UVM test results is not built yet: it is on the [roadmap](docs/ROADMAP.md#reporting). Features that depend on it are marked **(planned)** below. Tested on macOS; feedback from Linux and Windows is welcome. [Report a problem](https://github.com/Hamza-eee/rtl-diagram/issues).
 
@@ -27,11 +27,20 @@ You write RTL with a block diagram already in your head. RTL Diagram draws that 
 The next two sections use verification reports, so here is how they work.
 
 1. You run tests on your design: a regression with a testbench, written for example in cocotb, AVL, Verilator or SystemVerilog/UVM.
-2. The test results are turned into a **verification report**, which is a folder with two JSON files. `run.json` says when the tests ran, on which git commit and for which design module. `findings.sarif` lists every failed check, in [SARIF](https://sarifweb.azurewebsites.net/), a standard format for tool results. Each failed check is called a **finding**. It names the signal where the problem was seen, and carries what was expected and observed, the test name, the random seed, the signal values and the command that reproduces the failure.
-3. RTL Diagram reads the folder and marks every finding on the port it names.
+2. A script turns the test results into a **verification report**, automatically. A report is a folder with two JSON files. `run.json` says when the tests ran, on which git commit and for which design module. `findings.sarif` lists every failed check, in [SARIF](https://sarifweb.azurewebsites.net/), a standard format for tool results. Each failed check is called a **finding**. It names the signal where the problem was seen, and carries what was expected and observed, the test name, the random seed, the signal values and the command that reproduces the failure.
+3. The report's format is standardized, so RTL Diagram can present any report that follows it, whichever testbench produced the results. It reads the folder and marks every finding on the port it names.
 
-**What exists today:** the extension reads this format, and the format is [documented](docs/run-format.md), with complete examples in [`test-fixtures/sample-soc`](https://github.com/Hamza-eee/rtl-diagram/tree/main/test-fixtures/sample-soc). Reports can be written by hand, by your own script, or by an AI agent following the format.
+**What exists today:** the extension reads this format, and the format is [documented](docs/verification-report-format.md), with complete examples in [`test-fixtures/sample-soc`](https://github.com/Hamza-eee/rtl-diagram/tree/main/test-fixtures/sample-soc). Reports can be written by hand, by your own script, or by an AI agent following the format.
 **What is planned:** a report script that creates the reports from cocotb, AVL, Verilator and SystemVerilog/UVM test results, and ready-made instructions for AI agents. See the [roadmap](docs/ROADMAP.md#reporting).
+
+## RTL and verification engineers: collaborate on the design
+
+When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log.
+
+- **Pass findings back and forth on the design.** Either side can leave a note, a question or an issue on a specific port, wire or block, anchored to the exact spot it refers to. Notes are small files saved in the repository, so the team gets them through git, without merge conflicts. It is a more legible way to pass findings around than a plain issue thread, with the design itself as the reference. → [Notes](docs/guide/notes.md)
+- **Report a bug with its reproduction.** A finding includes the command that regenerates the failure, so the designer can reproduce it without asking. → [Verification findings](docs/guide/findings.md)
+- **Know whether a report is still valid.** A report records the git commit it was made from. If the RTL has changed since, the report and the affected findings are marked as possibly out of date. → [Does the report still match the RTL?](docs/guide/findings.md#does-the-report-still-match-the-rtl)
+- **Use any testbench.** A report is plain JSON in a documented format, so cocotb, AVL, Verilator, SystemVerilog/UVM or your own scripts can all produce one. **(The script that creates reports from their results is planned.)** → [Verification report format](docs/verification-report-format.md)
 
 ## The designer with a verification assistant
 
@@ -41,20 +50,7 @@ Think of it as a verification assistant that reports back visually. Instead of f
 
 - **See each failed check where it was observed.** The finding is marked on its port, with the message, the signal values, the test and the requirement it violates. Blocks above it show a count, so you can find it from the top. → [Verification findings](docs/guide/findings.md)
 - **Go from the symptom to the code that drives it.** Each finding links to the port's declaration and to the statements that drive the signal, as places to look first. They are candidates, not a diagnosis. → [Verification findings](docs/guide/findings.md)
-- **Reproduce the exact failure.** Each finding carries the command that regenerates it, test name and random seed included. The extension types it into a terminal for you, without running it until you press Enter. → [Verification findings](docs/guide/findings.md)
-
-You are an RTL designer and want to see how far an AI agent can drive verification before you involve a specialist. For example, Claude Code can run your tests and write the verification report, and RTL Diagram shows the result on the diagram.
-
-What is planned: ready-made instructions for AI agents (agent definitions and prompts you copy into your project), so that an agent writes reports in the right format. Today, the report format is documented, so an agent can already be told to follow it. See the [roadmap](docs/ROADMAP.md#reporting).
-
-## Design and verification teams: one shared visual
-
-When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log.
-
-- **Pass findings back and forth on the design.** Either side can leave a note, a question or an issue on a specific port, wire or block, anchored to the exact spot it refers to. Notes are small files saved in the repository, so the team gets them through git, without merge conflicts. It is a more legible way to pass findings around than a plain issue thread, with the design itself as the reference. → [Notes](docs/guide/notes.md)
-- **Report a bug with its reproduction.** A finding includes the command that regenerates the failure, so the designer can reproduce it without asking. → [Verification findings](docs/guide/findings.md)
-- **Know whether a report is still valid.** A report records the git commit it was made from. If the RTL has changed since, the report and the affected findings are marked as possibly out of date. → [Does the report still match the RTL?](docs/guide/findings.md#does-the-report-still-match-the-rtl)
-- **Use any testbench.** A report is plain JSON in a documented format, so cocotb, AVL, Verilator, SystemVerilog/UVM or your own scripts can all produce one. **(The script that creates reports from their results is planned.)** → [Report format](docs/run-format.md)
+- **Reproduce the exact failure** with the command each finding carries, as described in [the section above](#rtl-and-verification-engineers-collaborate-on-the-design).
 
 ## Limitations
 
@@ -95,7 +91,7 @@ The extension never connects to the network and collects no telemetry. It reads 
 | [Settings and commands](docs/guide/settings.md) | every setting and command |
 | [Offline, no telemetry](docs/guide/privacy.md) | what it reads, writes and runs |
 | [Troubleshooting and limitations](docs/guide/troubleshooting.md) | common problems, known limits |
-| [Report format](docs/run-format.md) | the verification report format, for writing your own |
+| [Verification report format](docs/verification-report-format.md) | the standard format a report script produces and the extension reads |
 
 For building from source and how it works inside, see [Development](docs/DEVELOPMENT.md), [Architecture](docs/ARCHITECTURE.md) and the [Roadmap](docs/ROADMAP.md). Changes are listed in the [changelog](CHANGELOG.md).
 

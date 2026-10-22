@@ -4,7 +4,7 @@
 
 This guide shows how failed tests appear on the diagram. Everything here works from a **verification report**, so that is explained first.
 
-> **Beta.** The extension reads verification reports in one documented format. The script that creates reports automatically from cocotb, AVL, Verilator or SystemVerilog/UVM test results is **planned, not built yet** ([roadmap](../ROADMAP.md#reporting)). Until then, reports are written by hand, by your own script or by an AI agent following the [format](../run-format.md).
+> **Beta.** The extension reads verification reports in one documented format. The script that creates reports automatically from cocotb, AVL, Verilator or SystemVerilog/UVM test results is **planned, not built yet** ([roadmap](../ROADMAP.md#reporting)). Until then, reports are written by hand, by your own script or by an AI agent following the [format](../verification-report-format.md).
 
 ## What a verification report is
 
@@ -49,4 +49,4 @@ Findings in a changed file carry a warning on their card and in the Problems pan
 
 ## Writing reports
 
-The format is in [run-format.md](../run-format.md). `test-fixtures/sample-soc/top/dv/soc_tb/reports/` has complete examples.
+The format is in [Verification report format](../verification-report-format.md). `test-fixtures/sample-soc/top/dv/soc_tb/reports/` has complete examples.

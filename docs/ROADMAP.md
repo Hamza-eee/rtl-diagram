@@ -4,7 +4,7 @@ Planned work, roughly in priority order within each section. **Nothing on this p
 
 ## Reporting
 
-- **Report helper (`rtl_report`, shipped with the extension).** A dependency-free Python package so any testbench (cocotb, AVL, Verilator) can produce verification reports in [the report format](run-format.md) without an agent:
+- **Report helper (`rtl_report`, shipped with the extension).** A dependency-free Python package so any testbench (cocotb, AVL, Verilator) can produce verification reports in [the report format](verification-report-format.md) without an agent:
   - a one-line call for checkers, e.g. `report.finding("RULE-ID", port="sig", msg=..., signals=...)`;
   - `finalize`: reads the cocotb JUnit results and writes the whole run directory (`run.json`, `findings.sarif` with every rule, `summary.md`, fingerprints, totals, status);
   - `check <run_dir>`: validates a run against the format, for scripts, agents and humans;

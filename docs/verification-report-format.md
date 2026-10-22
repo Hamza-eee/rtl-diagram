@@ -1,6 +1,12 @@
 # Verification report format (1.x)
 
-A **verification report** is a folder that records the outcome of one set of test runs (a regression): which tests ran, and which checks failed. RTL Diagram reads one such folder per report and shows each failed check, called a **finding**, on the port it names. This page describes the format, for anyone writing a report from a testbench, a script or an AI agent. (`run_id` identifies one run of the tests.)
+After you test a design, a **verification report** records the outcome: which tests ran, and which checks failed. The report is meant to be **generated automatically by a script** from the test results. Its format is **standardized**, so that the RTL Diagram extension can present any report that follows it, whichever testbench or tool produced the results.
+
+This page describes that standard, for anyone writing a report generator: a script, an AI agent, or a person writing a report by hand. The extension reads one report folder at a time and shows each failed check, called a **finding**, on the port it names.
+
+> **Status.** The extension reads this format today. The report script that creates it automatically from cocotb, AVL, Verilator and SystemVerilog/UVM results is **planned** ([roadmap](ROADMAP.md#reporting)). Until then, reports come from your own script, an AI agent, or by hand. (`run_id` below identifies one run of the tests.)
+
+A report is one folder:
 
 ```
 <anything>/reports/<run_id>/

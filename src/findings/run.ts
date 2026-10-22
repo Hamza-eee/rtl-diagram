@@ -1,5 +1,5 @@
 // Loads a verification run directory (run.json + findings.sarif, report format 1.x).
-// The format is described in docs/run-format.md.
+// The format is described in docs/verification-report-format.md.
 
 import * as fs from 'fs';
 import * as path from 'path';
