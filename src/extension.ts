@@ -145,7 +145,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
   const rescanRuns = (uri?: vscode.Uri) => { if (uri && !store.inScope(uri.fsPath)) return; if (tr) clearTimeout(tr); tr = setTimeout(() => void store.rescanRuns(), 400); };
   const w4 = vscode.workspace.createFileSystemWatcher(`**/${store.notesFolderName()}/*.json`);
   let tn: NodeJS.Timeout | undefined;
-  const reloadNotes = () => { if (tn) clearTimeout(tn); tn = setTimeout(() => store.reloadNotes(), 200); };
+  const reloadNotes = (uri?: vscode.Uri) => { if (uri && !store.inScope(uri.fsPath)) return; if (tn) clearTimeout(tn); tn = setTimeout(() => store.reloadNotes(), 200); };
   w4.onDidChange(reloadNotes); w4.onDidCreate(reloadNotes); w4.onDidDelete(reloadNotes);
   for (const w of [w1, w2]) { w.onDidChange(schedule); w.onDidCreate(schedule); w.onDidDelete(schedule); }
   w3.onDidCreate(rescanRuns); w3.onDidChange(rescanRuns); w3.onDidDelete(rescanRuns);

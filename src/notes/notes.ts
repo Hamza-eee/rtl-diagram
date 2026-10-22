@@ -42,12 +42,44 @@ export function newNoteId(now = new Date()): string {
   return `${stamp}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function isNote(x: any): x is Note {
-  return x && x.schema === 1 && typeof x.id === 'string' && NOTE_KINDS.includes(x.kind) && typeof x.text === 'string'
-    && x.anchor && typeof x.anchor.module === 'string' && x.anchor.target && ['module', 'port', 'net'].includes(x.anchor.target.type);
+// Notes are shared files written by other people and tools, so everything read from disk
+// (or sent by the webview) is validated before use. The id doubles as the file name, so it
+// must match exactly what newNoteId() produces: no separators, no "..".
+export const NOTE_ID_RE = /^\d{8}T\d{6}-[a-z0-9]{1,12}$/;
+const NAME_RE = /^[A-Za-z_][A-Za-z0-9_$]*$/;          // SystemVerilog identifier
+const KEY_RE = /^[A-Za-z_][A-Za-z0-9_$]*(\[[^\]\n]{1,64}\])?(#\d+)?$/;   // instance key, e.g. u_arr[1:0], u_x#2
+
+const isStr = (v: unknown, max = 256): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
+
+export function isAnchor(a: any): a is NoteAnchor {
+  if (!a || typeof a !== 'object' || !isStr(a.module) || !NAME_RE.test(a.module)) return false;
+  const t = a.target;
+  if (!t || typeof t !== 'object') return false;
+  if (t.type === 'module') { /* ok */ }
+  else if ((t.type === 'port' || t.type === 'net') && isStr(t.name) && NAME_RE.test(t.name)) { /* ok */ }
+  else return false;
+  if (a.scope !== undefined) {
+    const sc = a.scope;
+    if (!sc || !isStr(sc.top) || !NAME_RE.test(sc.top) || !Array.isArray(sc.instPath) || sc.instPath.length > 64) return false;
+    if (!sc.instPath.every((k: unknown) => isStr(k, 128) && KEY_RE.test(k as string))) return false;
+  }
+  return true;
 }
 
-/** Read every `*.json` note in the given folders. Unreadable files are reported, not fatal. */
+const isIsoDate = (v: unknown) => typeof v === 'string' && v.length <= 40 && !Number.isNaN(Date.parse(v));
+
+export function isNote(x: any): x is Note {
+  return !!x && typeof x === 'object' && x.schema === 1
+    && typeof x.id === 'string' && NOTE_ID_RE.test(x.id)
+    && NOTE_KINDS.includes(x.kind)
+    && typeof x.text === 'string' && x.text.length <= MAX_NOTE_LENGTH
+    && typeof x.author === 'string' && x.author.length <= 200
+    && isIsoDate(x.created) && (x.updated === undefined || isIsoDate(x.updated))
+    && typeof x.resolved === 'boolean'
+    && isAnchor(x.anchor);
+}
+
+/** Read every `*.json` note in the given folders. Invalid files are reported and skipped, never fatal. */
 export function loadNotes(dirs: string[]): { notes: StoredNote[]; issues: string[] } {
   const notes: StoredNote[] = [];
   const issues: string[] = [];
@@ -58,8 +90,9 @@ export function loadNotes(dirs: string[]): { notes: StoredNote[]; issues: string
       const file = path.join(dir, n);
       try {
         const x = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (isNote(x)) notes.push({ ...x, file });
-        else issues.push(`${file}: not a valid note`);
+        if (!isNote(x)) issues.push(`${file}: not a valid note (skipped)`);
+        else if (x.id !== path.basename(n, '.json')) issues.push(`${file}: note id "${x.id}" does not match its file name (skipped)`);
+        else notes.push({ ...x, file });
       } catch (e: any) {
         issues.push(`${file}: ${e.message}`);
       }
@@ -69,13 +102,32 @@ export function loadNotes(dirs: string[]): { notes: StoredNote[]; issues: string
   return { notes, issues };
 }
 
+/** True if `file` is directly inside `dir` (no traversal, no symlinked escape of the name). */
+export function isInside(dir: string, file: string): boolean {
+  const rel = path.relative(path.resolve(dir), path.resolve(file));
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel) && !rel.includes(path.sep);
+}
+
+/** Write a note to <dir>/<id>.json. Refuses ids that aren't plain note ids. */
 export function writeNote(dir: string, note: Note): string {
-  fs.mkdirSync(dir, { recursive: true });
+  if (!NOTE_ID_RE.test(note.id)) throw new Error(`refusing to write note with invalid id "${note.id}"`);
   const file = path.join(dir, `${note.id}.json`);
+  if (!isInside(dir, file)) throw new Error(`refusing to write a note outside ${dir}`);
+  fs.mkdirSync(dir, { recursive: true });
   const plain: Partial<StoredNote> = { ...note };
   delete plain.file;                         // the path is where it lives, not part of the note
   fs.writeFileSync(file, JSON.stringify(plain, null, 2) + '\n');
   return file;
+}
+
+/** A notes folder name from settings: a plain relative path inside the project, else the default. */
+export function safeNotesFolder(name: unknown, fallback = '.rtl-notes'): { name: string; issue?: string } {
+  if (typeof name !== 'string' || !name.trim()) return { name: fallback };
+  const n = path.normalize(name.trim());
+  if (path.isAbsolute(n) || n.split(/[\\/]/).includes('..')) {
+    return { name: fallback, issue: `rtlDiagram.notesFolder "${name}" points outside the project; using "${fallback}"` };
+  }
+  return { name: n };
 }
 
 /** Why a note no longer points at anything in the parsed RTL, or undefined if it still does. */

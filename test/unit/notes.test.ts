@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { Note, anchorLabel, detachedReason, loadNotes, newNoteId, noteMarksFor, writeNote } from '../../src/notes/notes';
+import { Note, anchorLabel, detachedReason, isAnchor, loadNotes, newNoteId, noteMarksFor, safeNotesFolder, writeNote } from '../../src/notes/notes';
 import { designOf, FIX } from './helpers';
 
 const HIER = path.join(FIX, 'sv/hier.sv');
@@ -23,6 +23,60 @@ describe('notes: storage', () => {
     assert.ok(!('file' in JSON.parse(fs.readFileSync(file, 'utf8'))), 'file path is not stored in the note');
     assert.strictEqual(r.issues.length, 1);
     fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('notes: untrusted files', () => {
+  const valid = () => ({ schema: 1, id: '20260115T100000-abc123', kind: 'note', text: 't', author: 'a',
+    created: '2026-01-15T10:00:00Z', resolved: false, anchor: { module: 'leafh', target: { type: 'port', name: 'q' } } });
+  let dir: string;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rtl-notes-sec-')); });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const put = (name: string, x: unknown) => fs.writeFileSync(path.join(dir, name), typeof x === 'string' ? x : JSON.stringify(x));
+
+  it('skips a note whose id is a path, and never writes outside the folder', () => {
+    put('evil.json', { ...valid(), id: '../../.vscode/tasks' });
+    const r = loadNotes([dir]);
+    assert.deepStrictEqual(r.notes, []);
+    assert.match(r.issues[0], /not a valid note/);
+    assert.throws(() => writeNote(dir, { ...valid(), id: '../../.vscode/tasks' } as Note), /invalid id/);
+    assert.throws(() => writeNote(dir, { ...valid(), id: '/etc/x' } as Note), /invalid id/);
+    assert.ok(!fs.existsSync(path.join(dir, '..', '..', '.vscode', 'tasks.json')));
+  });
+
+  it('skips a note whose id does not match its file name', () => {
+    put('20260115T100000-zzz.json', valid());
+    const r = loadNotes([dir]);
+    assert.deepStrictEqual(r.notes, []);
+    assert.match(r.issues[0], /does not match its file name/);
+  });
+
+  it('skips malformed notes without hiding the valid ones', () => {
+    put('20260115T100000-abc123.json', valid());
+    put('20260115T100001-bad1.json', { ...valid(), id: '20260115T100001-bad1', created: 42 });
+    put('20260115T100002-bad2.json', { ...valid(), id: '20260115T100002-bad2', anchor: { module: 'leafh', target: { type: 'module' }, scope: { top: 'x', instPath: 'u_a' } } });
+    put('20260115T100003-bad3.json', { ...valid(), id: '20260115T100003-bad3', anchor: { module: 'a b', target: { type: 'module' } } });
+    put('20260115T100004-bad4.json', '{ not json');
+    const r = loadNotes([dir]);
+    assert.deepStrictEqual(r.notes.map(n => n.id), ['20260115T100000-abc123']);
+    assert.strictEqual(r.issues.length, 4);
+  });
+
+  it('validates anchors sent by the webview', () => {
+    assert.ok(isAnchor({ module: 'fifo', target: { type: 'port', name: 'wdata' }, scope: { top: 'soc_top', instPath: ['u_evt_fifo'] } }));
+    assert.ok(isAnchor({ module: 'leafh', target: { type: 'module' }, scope: { top: 'hier_top', instPath: ['u_arr[1:0]', 'u_x#2'] } }));
+    assert.ok(!isAnchor({ module: '../x', target: { type: 'module' } }));
+    assert.ok(!isAnchor({ module: 'fifo', target: { type: 'file', name: 'x' } }));
+    assert.ok(!isAnchor({ module: 'fifo', target: { type: 'port', name: 'a/b' } }));
+    assert.ok(!isAnchor({ module: 'fifo', target: { type: 'module' }, scope: { top: 'soc_top', instPath: ['../..'] } }));
+  });
+
+  it('keeps the notes folder setting inside the project', () => {
+    assert.deepStrictEqual(safeNotesFolder('.rtl-notes'), { name: '.rtl-notes' });
+    assert.deepStrictEqual(safeNotesFolder('docs/notes'), { name: path.normalize('docs/notes') });
+    assert.strictEqual(safeNotesFolder('../../x').name, '.rtl-notes');
+    assert.match(safeNotesFolder('/etc').issue!, /outside the project/);
+    assert.strictEqual(safeNotesFolder('a/../../b').name, '.rtl-notes');
   });
 });
 
