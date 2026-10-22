@@ -6,12 +6,12 @@ RTL Diagram never connects to the network, and it collects nothing. Your RTL, ru
 
 ## What it does on your machine
 
-- **Reads** the project's RTL, `Bender.yml`, filelists, verification runs and notes.
+- **Reads** the project's RTL, `Bender.yml`, file lists, verification reports and notes.
 - **Writes** only note files, inside the project's notes folder (`.rtl-notes/` by default), and only when you add, edit or delete a note.
 - **Runs** these programs, all local:
   - `verible-verilog-syntax`, on your RTL files;
   - `git config user.name`, for the author of a note;
-  - `git rev-parse`, `git cat-file`, `git diff --name-only` and `git ls-files`, to tell whether a verification run still matches the RTL.
+  - `git rev-parse`, `git cat-file`, `git diff --name-only` and `git ls-files`, to tell whether a verification report still matches the RTL.
 - **Stores** its UI choices (project, sources, spacing, theme) in VS Code's per-workspace storage.
 
 The diagram panel runs under a Content Security Policy of `default-src 'none'`. It can load only the extension's own script and stylesheet, and it can't fetch or send anything.

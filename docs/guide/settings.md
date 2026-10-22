@@ -6,7 +6,7 @@
 
 | Setting | Default | Description |
 |---|---|---|
-| `rtlDiagram.projectFolder` | *(empty)* | Folder to read RTL, runs and notes from. Empty: the project chosen in the diagram's project menu, or the only project found. |
+| `rtlDiagram.projectFolder` | *(empty)* | Folder to read RTL, verification reports and notes from. Empty: the project chosen in the diagram's project menu, or the only project found. |
 | `rtlDiagram.liveUpdate` | `true` | Redraw when RTL files are saved. Off: keep the diagram and list the changed files. The toolbar's Live button changes it per workspace. |
 | `rtlDiagram.veriblePath` | `verible-verilog-syntax` | The Verible syntax tool: a command on your `PATH` or a full path. |
 | `rtlDiagram.sourceMode` | `auto` | `auto`, `bender`, `filelist` or `glob`. See [Projects and sources](projects-and-sources.md). |
@@ -15,7 +15,7 @@
 | `rtlDiagram.filelists` | `[]` | `.f` filelists to read. |
 | `rtlDiagram.include` | `**/*.{sv,v}` | Files read when there is no `Bender.yml` or filelist. |
 | `rtlDiagram.exclude` | testbench folders and `*_tb` files | Globs never read as RTL. |
-| `rtlDiagram.runsGlob` | `**/reports/*/run.json` | Where verification runs are found. |
+| `rtlDiagram.runsGlob` | `**/reports/*/run.json` | Where verification reports (folders holding `run.json`) are found. |
 | `rtlDiagram.netLabels.pattern` | clocks and resets | Nets whose name matches are drawn as labels instead of wires. Empty disables. |
 | `rtlDiagram.netLabels.minLoads` | `6` | Nets with at least this many loads are drawn as labels. `0` disables. |
 | `rtlDiagram.layout.spacing` | `normal` | `compact`, `normal` or `roomy`. The toolbar button changes it per workspace. |
@@ -36,8 +36,8 @@ All commands are in the Command Palette under **RTL Diagram**.
 | Open Project… | Pick the project folder to read from. |
 | Configure Sources… | Choose where this project's RTL comes from. |
 | Choose Top Module… | Pick which top module the diagram starts from. |
-| Open Run Folder… | Load a verification run directory from anywhere on disk. |
-| Clear Active Run | Hide findings. |
+| Open Report Folder… | Open a verification report folder from anywhere on disk. |
+| Clear Active Report | Hide the findings. |
 | Toggle Live Updates | Pause or resume redrawing on save. |
-| Rescan Sources and Runs | Re-read everything. |
+| Rescan Sources and Reports | Re-read everything. |
 | Show Source Files | List the RTL files in use. |

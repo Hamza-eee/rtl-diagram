@@ -4,7 +4,7 @@
 
 ## Projects
 
-A project is the folder the RTL, verification runs and notes are read from.
+A project is the folder that the RTL, verification reports and notes are read from.
 
 - If the folder you opened is one project, it opens directly.
 - If it holds several (for example a parent folder of many repositories), nothing is mixed: the diagram and the Hierarchy view ask which one to open.
@@ -14,8 +14,8 @@ A project is the folder the RTL, verification runs and notes are read from.
 
 In the default `auto` mode, the first of these that exists is used:
 
-1. **Bender.** Every `Bender.yml` is read directly: sources in order, globs expanded, `path` dependencies followed. Source groups with a `target:` are included only when the expression holds for `rtlDiagram.benderTargets`. The default is no active targets, which gives plain RTL: `test`, `simulation` and technology-specific groups are left out. `bender` itself is never run, so nothing is written to your repository. Git dependencies resolve if they are already checked out under `.bender/`.
-2. **Filelists** (`.f`), with `-f` nesting, `+incdir+`, `-v` and `-y`.
+1. **Bender** (a hardware package manager from the PULP Platform). Every `Bender.yml` is read directly: sources in order, globs expanded, `path` dependencies followed. Source groups with a `target:` are included only when the expression holds for `rtlDiagram.benderTargets`. The default is no active targets, which gives plain RTL: `test`, `simulation` and technology-specific groups are left out. `bender` itself is never run, so nothing is written to your repository. Git dependencies resolve if they are already checked out under `.bender/`.
+2. **File lists** (`.f` files, as used by simulators), with `-f` nesting, `+incdir+`, `-v` and `-y`.
 3. **All `.sv` and `.v` files** (`rtlDiagram.include`).
 
 Testbench folders are left out by default (`rtlDiagram.exclude`). **RTL Diagram: Show Source Files** lists the files in use.
@@ -26,7 +26,7 @@ Click **Sources: …** at the bottom left of the diagram. It shows what is used 
 
 - **Automatic**, as above;
 - **Bender only**;
-- **Filelists…**: the `.f` files found in the project are listed, so tick the ones to use, or browse for others;
+- **Filelists…**: the file lists (`.f` files) found in the project are listed, so tick the ones to use, or browse for others;
 - **Files matching a pattern…**;
 - **Use the settings**: go back to the defaults in [Settings](settings.md).
 

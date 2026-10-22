@@ -963,11 +963,11 @@ function renderDrawer() {
 
 function runHeader() {
   const r = view?.run;
-  if (!r) return h('div', { class: 'run-head none' }, h('div', { class: 'run-title' }, 'No verification run shown'), h('div', { class: 'muted' }, 'Pick a run in the Verification runs view to mark its findings here.'));
+  if (!r) return h('div', { class: 'run-head none' }, h('div', { class: 'run-title' }, 'No verification report shown'), h('div', { class: 'muted' }, 'Pick a report in the Verification reports view to mark its findings here.'));
   const t = view!.findings;
   const n = (l: Level) => t.filter(f => f.level === l).length;
   return h('div', { class: `run-head st-${r.broken ? 'broken' : r.status}` },
-    h('div', { class: 'run-title' }, h('span', { class: 'run-state' }, r.broken ? 'Broken run' : r.status === 'pass' ? 'Passed' : 'Failed'), h('span', { class: 'mono' }, r.id)),
+    h('div', { class: 'run-title' }, h('span', { class: 'run-state' }, r.broken ? 'Broken report' : r.status === 'pass' ? 'Passed' : 'Failed'), h('span', { class: 'mono' }, r.id)),
     h('div', { class: 'muted' }, `${r.testbench} · DUT ${r.dutTop}`),
     freshnessNote(r),
     view!.markers.byModule ? h('div', { class: 'warn small' }, `${r.dutTop} is not instantiated exactly once under ${view!.top}, so findings are shown on every instance of the flagged module.`) : null,
@@ -992,7 +992,7 @@ function freshnessNote(r: NonNullable<ViewMsg['run']>) {
 }
 
 function findingsList() {
-  if (!view?.run) return h('p', { class: 'muted pad' }, 'Without a run, the diagram is a plain design browser. Findings appear here when a run is active.');
+  if (!view?.run) return h('p', { class: 'muted pad' }, 'Without a verification report, the diagram is a plain design browser. Findings (failed checks) appear here when a report is open.');
   if (!view.findings.length) return h('div', { class: 'pad clean' }, h('div', { class: 'clean-title' }, 'No findings in this run'), h('p', { class: 'muted' }, 'Every rule in the verification plan was checked and is clean.'));
   const order = (f: FindingRow) => (f.here ? 0 : f.resolved ? 1 : 2) * 10 + ({ error: 0, warning: 1, note: 2, none: 3 }[f.level]);
   const rows = [...view.findings].sort((a, b) => order(a) - order(b) || a.index - b.index);
@@ -1471,7 +1471,7 @@ window.addEventListener('keydown', e => { if (e.key === 'Escape' && !projMenu.hi
 function projectChooser(p: ProjectState) {
   return h('div', { class: 'chooser' },
     h('h2', {}, 'Choose a project to open'),
-    h('p', { class: 'muted' }, `This folder holds ${p.candidates.length} RTL projects. Each opens on its own, with its own verification runs and notes.`),
+    h('p', { class: 'muted' }, `This folder holds ${p.candidates.length} RTL projects. Each opens on its own, with its own verification reports and notes.`),
     h('ul', { class: 'chooser-list' }, ...p.candidates.map(c => h('li', {},
       h('button', { class: 'chooser-row', onclick: () => vscode.postMessage({ type: 'setProject', folder: c.path }) },
         icon('repo'), h('span', { class: 'cr-name' }, c.name), h('span', { class: 'cr-path mono' }, c.rel))))),

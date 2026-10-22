@@ -80,7 +80,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
       await Promise.all([store.rescanDesign(), store.rescanRuns()]);
     }),
     vscode.commands.registerCommand('rtlDiagram.openRun', async () => {
-      const pick = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Open run', title: 'Choose a run directory (contains run.json)' });
+      const pick = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, openLabel: 'Open report', title: 'Choose a verification report folder (contains run.json)' });
       if (pick?.[0]) await store.addRunDir(pick[0].fsPath);
     }),
     vscode.commands.registerCommand('rtlDiagram.activateRun', (dir: string) => {
@@ -123,7 +123,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
       ];
       const pick = await vscode.window.showQuickPick(items, {
         title: 'RTL Diagram: open a project',
-        placeHolder: store.candidates.length ? 'RTL, verification runs and notes are read from the chosen folder only' : 'No git repositories with RTL found here: browse for a folder',
+        placeHolder: store.candidates.length ? 'RTL, verification reports and notes are read from the chosen folder only' : 'No git repositories with RTL found here: browse for a folder',
         matchOnDescription: true,
       });
       if (!pick) return;

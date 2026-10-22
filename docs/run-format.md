@@ -1,14 +1,14 @@
-# Verification run format (1.x)
+# Verification report format (1.x)
 
-RTL Diagram reads one directory per verification run:
+A **verification report** is a folder that records the outcome of one set of test runs (a regression): which tests ran, and which checks failed. RTL Diagram reads one such folder per report and shows each failed check, called a **finding**, on the port it names. This page describes the format, for anyone writing a report from a testbench, a script or an AI agent. (`run_id` identifies one run of the tests.)
 
 ```
 <anything>/reports/<run_id>/
 ├── run.json          required
-└── findings.sarif    required: a run without it is shown as broken
+└── findings.sarif    required: a report without it is shown as broken
 ```
 
-Other files (summaries, JUnit XML, waveforms) may sit alongside and are linked when a finding references them. Paths inside both files are relative to the repository root. The root is the run directory minus the directory part of `run.json`'s `files.findings`.
+Other files (summaries, JUnit XML, waveforms) may sit alongside and are linked when a finding references them. Paths inside both files are relative to the repository root. The root is the report folder minus the directory part of `run.json`'s `files.findings`.
 
 ## run.json
 

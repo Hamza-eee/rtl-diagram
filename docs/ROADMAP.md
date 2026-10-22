@@ -4,12 +4,13 @@ Planned work, roughly in priority order within each section. **Nothing on this p
 
 ## Reporting
 
-- **Report helper (`rtl_report`, shipped with the extension).** A dependency-free Python package so any testbench can produce runs in [the run format](run-format.md) without an agent:
+- **Report helper (`rtl_report`, shipped with the extension).** A dependency-free Python package so any testbench (cocotb, AVL, Verilator) can produce verification reports in [the report format](run-format.md) without an agent:
   - a one-line call for checkers, e.g. `report.finding("RULE-ID", port="sig", msg=..., signals=...)`;
   - `finalize`: reads the cocotb JUnit results and writes the whole run directory (`run.json`, `findings.sarif` with every rule, `summary.md`, fingerprints, totals, status);
   - `check <run_dir>`: validates a run against the format, for scripts, agents and humans;
   - a machine-readable rules list (a fixed-column verification-plan table or `rules.yaml`) as its input;
   - an extension command, "Add report helper to this project", that copies the package into the workspace.
+- **Instructions for AI agents** (for example Claude Code): ready-made agent definitions and prompts you copy into your project, so an agent can run your tests and write a verification report in the right format. This is the groundwork for letting a designer see how far agent-driven verification can go before handing the design to a verification specialist.
 - **Adapter for pure SystemVerilog / UVM testbenches**, emitting the same format (DPI-C helper or a log-based converter).
 - **JSON Schemas** for `run.json` and `findings.sarif`, registered through `jsonValidation`, so hand-edited files are checked while typing.
 

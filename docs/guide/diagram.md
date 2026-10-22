@@ -45,8 +45,8 @@ The view position is remembered for each module, so going back to a block puts y
 | Magenta pin | the pin ends up unconnected although the code doesn't say so; hover for why ([Checks](checks.md)) |
 | Struck-through pin name | the connection names a port the module doesn't have |
 | Magenta hatching and a `</>` badge | a source issue affects the block, so it may be drawn incomplete; an outlined badge means the issue is further down ([Checks](checks.md)) |
-| Coloured probe with a rule ID | where a verification finding was observed ([Findings](findings.md)) |
-| Count badge on a block | findings on that instance or somewhere inside it |
+| Coloured tag with a rule ID | where a failed check (a finding) was observed ([Findings](findings.md)) |
+| Count badge on a block | findings on that block or somewhere inside it |
 | Speech bubble | one or more [notes](notes.md) |
 
 Names are used only for display choices (which nets become labels, pin colours), never for connectivity.

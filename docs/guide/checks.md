@@ -2,13 +2,13 @@
 
 [← Back to the README](../../README.md)
 
-While it reads the RTL, the extension finds problems that would otherwise surface only at elaboration or in simulation. They are marked on the diagram, on the block or pin they affect, and listed in the **Issues** tab.
+While it reads the RTL, the extension finds problems that would otherwise surface only when you compile, build the design for simulation (*elaboration*) or simulate. They are marked on the diagram, on the block or pin they affect, and listed in the **Issues** tab.
 
 ## What is reported
 
 | Issue | What it means | On the diagram |
 |---|---|---|
-| **Syntax error** | Verible could not parse part of a file. The error is reported where Verible noticed it; the mistake is often just before, such as a missing `;` on the line above. If a file couldn't be read at all, only its first error is listed, because the ones after it are usually knock-on effects. | The block is hatched in magenta: it may be drawn incomplete |
+| **Syntax error** | Verible, the SystemVerilog parser the extension uses, could not parse part of a file. The error is reported where Verible noticed it; the mistake is often just before, such as a missing `;` on the line above. If a file couldn't be read at all, only its first error is listed, because the ones after it are usually knock-on effects. | The block is hatched in magenta: it may be drawn incomplete |
 | **Not found** | An instance of a module that isn't in the files read: a vendor primitive, a missing dependency, a file outside the sources, or a file whose syntax errors stopped Verible from reading it (the entry says which) | The block is dashed, marked *not in sources* |
 | **Declared more than once** | Two files declare the same module. The first in source order is used, as a compiler would | Hatched block |
 | **Not connected** | A pin that ends up connected to nothing although the code doesn't say so (below) | Magenta pin, `</>` badge on the block |
@@ -18,7 +18,7 @@ While it reads the RTL, the extension finds problems that would otherwise surfac
 
 Four cases are reported:
 
-- **`.*` with no matching signal.** `.*` connects each port to the parent's signal of the same name. If the parent has no such signal, the port is left unconnected, and SystemVerilog rejects the design at elaboration. The message suggests a near-named signal if there is one: *did you mean `.rst_n(rst_ni)`?*
+- **`.*` with no matching signal.** `.*` connects each port to the parent's signal of the same name. If the parent has no such signal, the port is left unconnected, and SystemVerilog rejects the design when it is elaborated. The message suggests a near-named signal if there is one: *did you mean `.rst_n(rst_ni)`?*
 - **A connection to a port the module doesn't have**, such as `.clk(clk_i)` after the module's port was renamed to `clk_x`. The pin is drawn with its name struck through. If the module has an unconnected port with a close name, both issues suggest the fix: *did you mean `.clk_x(clk_i)`?*
 - **Extra positional connections**, beyond the module's port count.
 - **An input left out of the connection list.** It floats.

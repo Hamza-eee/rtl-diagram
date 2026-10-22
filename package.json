@@ -57,7 +57,7 @@
         },
         {
           "id": "rtlDiagram.runs",
-          "name": "Verification runs"
+          "name": "Verification reports"
         }
       ]
     },
@@ -70,7 +70,7 @@
       {
         "view": "rtlDiagram.hierarchy",
         "when": "rtlDiagram.needsProject && !rtlDiagram.veribleMissing",
-        "contents": "This folder holds several RTL projects. Choose the one to open; its RTL, verification runs and notes are shown on their own.\n[Open a project](command:rtlDiagram.chooseProject)"
+        "contents": "This folder holds several RTL projects. Choose the one to open; its RTL, verification reports and notes are shown on their own.\n[Open a project](command:rtlDiagram.chooseProject)"
       },
       {
         "view": "rtlDiagram.hierarchy",
@@ -79,7 +79,7 @@
       },
       {
         "view": "rtlDiagram.runs",
-        "contents": "No verification runs found in this project. Runs are read from reports/<run_id>/run.json.\n[Open a run folder](command:rtlDiagram.openRun)"
+        "contents": "No verification reports found in this project. A report is a folder holding run.json and findings.sarif, normally under reports/<run_id>/.\n[Open a report folder](command:rtlDiagram.openRun)"
       }
     ],
     "commands": [
@@ -97,13 +97,13 @@
       },
       {
         "command": "rtlDiagram.refresh",
-        "title": "Rescan Sources and Runs",
+        "title": "Rescan Sources and Reports",
         "category": "RTL Diagram",
         "icon": "$(refresh)"
       },
       {
         "command": "rtlDiagram.openRun",
-        "title": "Open Run Folder\u2026",
+        "title": "Open Report Folder\u2026",
         "category": "RTL Diagram",
         "icon": "$(folder-opened)"
       },
@@ -124,7 +124,7 @@
       },
       {
         "command": "rtlDiagram.clearRun",
-        "title": "Clear Active Run",
+        "title": "Clear Active Report",
         "category": "RTL Diagram",
         "icon": "$(clear-all)"
       },
@@ -204,7 +204,7 @@
         "rtlDiagram.projectFolder": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Folder to read RTL, verification runs and notes from (absolute, or relative to the first workspace folder). Empty: the project chosen in the diagram's project menu (or with **RTL Diagram: Open Project\u2026**), or the only project found."
+          "markdownDescription": "Folder to read RTL, verification reports and notes from (absolute, or relative to the first workspace folder). Empty: the project chosen in the diagram's project menu (or with **RTL Diagram: Open Project\u2026**), or the only project found."
         },
         "rtlDiagram.liveUpdate": {
           "type": "boolean",
@@ -273,7 +273,7 @@
         "rtlDiagram.runsGlob": {
           "type": "string",
           "default": "**/reports/*/run.json",
-          "markdownDescription": "Where verification runs are discovered."
+          "markdownDescription": "Where verification reports (folders holding run.json) are discovered."
         },
         "rtlDiagram.netLabels.pattern": {
           "type": "string",

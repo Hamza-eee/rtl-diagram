@@ -11,7 +11,7 @@ First public version.
   - ports with direction arrows, instances, the module's own logic, and nets with bus widths;
   - generate constructs, drawn with a stacked outline and a header;
   - clocks, resets and high fan-out nets drawn as labels.
-- Logic written in a port connection (`.push(a & ~b)`) is drawn as one expression box feeding the pin.
+- Logic written in a port connection (`.c(a & ~b)`) is drawn as one expression box feeding the pin.
 - Pins:
   - open pins show `×`;
   - pins tied to 0 show a ground symbol, and pins tied to all ones a supply bar;
@@ -44,12 +44,12 @@ First public version.
 - Sources can be chosen per project from the diagram (**Sources: …**). The choice is stored by the extension, never in the repository.
 
 **Verification findings**
-- Runs (`run.json` + SARIF 2.1.0) are found in the project or opened from anywhere.
+- Verification reports (`run.json` + SARIF 2.1.0 `findings.sarif`) are found in the project or opened from anywhere. Creating them automatically from test results is planned.
 - Findings are placed on the exact instance and port, resolved through generate scopes and instance arrays.
 - Each finding links to its port declaration and direct drivers. Findings are worded as observations, not diagnoses.
 - Finding card: signal values, test, seed, requirement text, and a reproduce command typed (not run) into a terminal.
 - Findings also appear as diagnostics in the Problems panel.
-- A warning appears when the RTL has changed since the run's commit.
+- A warning appears when the RTL has changed since the report's git commit.
 
 **Notes**
 - Notes, questions and issues on ports, wires and blocks, shared as one JSON file per note in `.rtl-notes/`.
