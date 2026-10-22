@@ -24,7 +24,7 @@ RTL Diagram draws your design hierarchy straight from the RTL, so designers and 
    - Linux / Windows: download a binary from the [Verible releases](https://github.com/chipsalliance/verible/releases)
 
    If it lives somewhere else, set `rtlDiagram.veriblePath`.
-2. Install the extension. Until it is on the Marketplace, use **Extensions: Install from VSIX…** with a `.vsix` built as described in [Contributing](CONTRIBUTING.md).
+2. Install the extension. Until it is on the Marketplace, use **Extensions: Install from VSIX…** with a `.vsix` built as described in [Building from source](docs/DEVELOPMENT.md).
 3. Open a folder with your RTL and click the **RTL Diagram** icon in the activity bar.
 4. Click a module in **Hierarchy** to open its diagram.
 
@@ -143,6 +143,8 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 
 See the [roadmap](docs/ROADMAP.md) for what's planned.
 
-## Contributing
+## Feedback
 
-Development setup, tests and project layout are in [CONTRIBUTING.md](CONTRIBUTING.md); the design is explained in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Bug reports and ideas are welcome as GitHub issues. Pull requests are not accepted.
+
+To build the extension yourself, see [Building from source](docs/DEVELOPMENT.md). The design is explained in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

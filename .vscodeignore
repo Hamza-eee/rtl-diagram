@@ -11,6 +11,6 @@ tsconfig.json
 scripts/**
 .gitignore
 docs/images/**
-CONTRIBUTING.md
+docs/DEVELOPMENT.md
 docs/ARCHITECTURE.md
 docs/ROADMAP.md

@@ -1,4 +1,6 @@
-# Contributing
+# Building from source
+
+How to build, run and test the extension locally.
 
 ## Setup
 
@@ -42,17 +44,13 @@ Everything in `test-fixtures/` is original and safe to publish:
 
 The example runs are generated: edit `scripts/make_fixture_runs.py` and run `python3 scripts/make_fixture_runs.py` instead of editing the JSON by hand.
 
-Don't add third-party or proprietary RTL to the repository. Write a small original fixture that shows the case instead.
+Fixtures must stay original: no third-party or proprietary RTL.
 
 ## Principles
 
 - **Deterministic.** Connectivity comes from the syntax tree only. A signal is a net only if the module declares it. Names may influence display (net labels, colours) but never what is connected to what. When something can't be resolved, show it as unresolved with the reason rather than guess.
 - **Read-only on user repositories.** The extension never runs `bender`, never edits RTL, and writes only notes, in the notes folder.
 - **Untrusted input.** Run files and notes are data from other people and tools: the webview builds DOM with `textContent` only, and commands from findings are never executed for the user.
-
-## Commits
-
-Use a short imperative subject (for example "Honour Bender target expressions on source groups") and a body explaining why the change was needed. Keep unrelated changes in separate commits, and add a line to `CHANGELOG.md` under *Unreleased* for anything a user would notice.
 
 ## Layout
 
