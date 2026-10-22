@@ -55,7 +55,7 @@ If you opened a parent folder holding several projects, the extension offers to 
 | Wire thickness, slash with a number | 1 bit, 2–8 bits, more than 8 bits; the bus width |
 | `×` at a pin, a value at a pin | the pin is left open, or tied to a constant |
 | Small rounded tag at a pin | a clock, reset or high fan-out net drawn as a label instead of a wire |
-| Coloured probe with a rule ID | a verification finding; a dotted ring marks what drives the flagged port |
+| Coloured probe with a rule ID | where a verification finding was observed; a dotted ring marks the statements that directly drive that signal (candidates, not a diagnosis) |
 | Count badge on a block | findings on that instance or somewhere inside it |
 | Speech bubble | one or more notes |
 
@@ -65,7 +65,7 @@ A net is drawn only if the module declares it as a port, net or variable. Names 
 
 The **Verification runs** view lists every run folder it finds (by default `**/reports/*/run.json`). Click a run to show its findings:
 
-- each flagged port gets a probe tagged with the rule ID, and the blocks above it get a count badge;
+- each port where the testbench **observed** a problem gets a probe tagged with the rule ID, and the blocks above it get a count badge. The probe marks the symptom, not the cause; the statements that directly drive the signal are marked as candidates to inspect;
 - the **Findings** tab groups findings into *in this block*, *elsewhere* and *not found in the RTL*, the last with the reason;
 - findings also appear in the Problems panel, on the port declaration;
 - rules with no findings are listed as *checked, clean*.

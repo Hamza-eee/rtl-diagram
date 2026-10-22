@@ -598,7 +598,7 @@ function netTip(net: string) {
 function markerTip(list: Marker[], pin: string) {
   const rows = list.map(m => {
     const f = view?.findings.find(x => x.index === m.f);
-    return h('div', { class: 'tip-f' }, h('span', { class: `dot lvl-${m.level}` }), h('span', {}, `${f?.ruleId ?? ''} · ${m.role === 'driver' ? 'drives the flagged port' : m.role}`));
+    return h('div', { class: 'tip-f' }, h('span', { class: `dot lvl-${m.level}` }), h('span', {}, `${f?.ruleId ?? ''} · ${m.role === 'driver' ? 'direct driver of the observed signal' : m.role === 'primary' ? 'observed here' : 'context signal'}`));
   });
   return h('div', {}, h('div', { class: 'tip-title mono' }, pin), ...rows, h('div', { class: 'tip-hint' }, 'Click the tag to open the finding'));
 }
@@ -868,7 +868,7 @@ function pinCard(id: string) {
     !isTerm && node.kind === 'inst' ? kv('connected to', h('span', { class: 'mono' }, pin.open ? 'open' : pin.expr ?? '')) : null,
     marks.length ? h('div', { class: 'pin-marks' }, ...marks.map(m => {
       const f = view!.findings.find(x => x.index === m.f);
-      return h('button', { class: `frow lvl-${m.level}`, onclick: () => openFinding(m.f) }, h('span', { class: `dot lvl-${m.level}` }), h('span', { class: 'frow-main' }, h('span', { class: 'frow-top' }, h('span', { class: 'rule mono' }, f?.ruleId ?? ''), h('span', { class: 'muted' }, m.role === 'driver' ? 'drives the flagged port' : m.role)), h('span', { class: 'frow-msg' }, f?.message ?? '')));
+      return h('button', { class: `frow lvl-${m.level}`, onclick: () => openFinding(m.f) }, h('span', { class: `dot lvl-${m.level}` }), h('span', { class: 'frow-main' }, h('span', { class: 'frow-top' }, h('span', { class: 'rule mono' }, f?.ruleId ?? ''), h('span', { class: 'muted' }, m.role === 'driver' ? 'direct driver of the observed signal' : m.role === 'primary' ? 'observed here' : 'context signal')), h('span', { class: 'frow-msg' }, f?.message ?? '')));
     })) : null,
     h('div', { class: 'actions' },
       pin.loc ? btn('Go to declaration', () => vscode.postMessage({ type: 'open', loc: pin.loc }), 'open', 'act primary') : null));
@@ -888,10 +888,11 @@ function findingCard(f: any) {
     h('p', { class: 'fc-msg' }, f.message),
   ));
 
-  // Where in the RTL
-  const where = h('section', { class: 'fc-sec' }, h('h3', {}, 'Where in the RTL'));
+  // Observed at: where the testbench saw the problem. Deliberately not phrased as a cause.
+  const where = h('section', { class: 'fc-sec' }, h('h3', {}, 'Observed at'));
   if (p && p.status === 'ok') {
     where.append(
+      h('p', { class: 'muted small' }, 'Where the testbench saw the problem. The cause may be elsewhere, upstream of this signal.'),
       h('div', { class: 'fc-sig' },
         locLink(p.signal, p.decl, 'Go to the port declaration'),
         h('span', { class: 'muted' }, ` ${p.isNet ? 'net' : p.dir ?? ''} ${p.range ?? ''} in `),
@@ -901,10 +902,12 @@ function findingCard(f: any) {
         btn('Show on diagram', () => vscode.postMessage({ type: 'showFinding', index: f.index }), 'fit')),
     );
     if (p.drivers?.length) {
-      where.append(h('h4', {}, `Driven by (${p.drivers.length})`), h('ul', { class: 'drivers' }, ...p.drivers.map((d: any) =>
+      where.append(h('h4', {}, `Direct drivers (${p.drivers.length})`),
+        h('p', { class: 'muted small' }, 'Statements in this module that assign the signal. Candidates to inspect, not a diagnosis.'),
+        h('ul', { class: 'drivers' }, ...p.drivers.map((d: any) =>
         h('li', {}, h('span', { class: 'chip ghost' }, d.kind === 'instance' ? 'instance' : d.kind), locLink(d.text, d.loc)))));
     } else {
-      where.append(h('p', { class: 'muted' }, p.dir === 'input' ? 'Input port: driven from outside this module.' : 'No driver found inside this module.'));
+      where.append(h('p', { class: 'muted' }, p.dir === 'input' ? 'Input port: driven from outside this module. Look at what drives it in the parent.' : 'No statement in this module assigns it.'));
     }
   } else {
     where.append(h('p', { class: 'warn' }, `Port ${p?.signal ?? '(none)'}: ${p?.reason ?? 'the finding names no primary signal'}.`),
