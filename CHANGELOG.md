@@ -2,33 +2,60 @@
 
 All notable changes to this extension are listed here.
 
-## Unreleased
+## 0.1.0 (beta)
 
-- Warn when the RTL has changed since a verification run's commit, in the run header, on affected finding cards and in the Problems panel.
-- Live toggle: pause redrawing on save; a banner lists changed files with Refresh.
-- Findings are worded as observations ("Observed at", "Direct drivers … not a diagnosis").
-- Note files are validated, and note writes are confined to the notes folder.
-- Folders with several projects ask which one to open instead of mixing them; the project name at the start of the breadcrumb switches project and configures sources per project.
-- Source issues (syntax errors, duplicate or missing modules, source problems) are marked on the affected blocks (magenta hatching and a `</>` badge) and listed as a session checklist. A file Verible can't read lists only its first error.
-- The project menu lists the projects in the open folder and any folder opened with **Browse for a folder…** (which may be outside the workspace; it is watched for changes too). The "whole workspace" option is gone.
-- The diagram says when the window still runs a previous version after an install, and needs a reload.
-- The Spacing and Live buttons show their new state as soon as they are clicked.
-- An expression in a port connection (`.push(a & ~b)`) is drawn as one box feeding the pin, instead of one wire per signal into the same pin.
-- Pins tied to 0 show a ground symbol and pins tied to all ones a supply bar; other constants keep their value.
-- The diagram's bottom bar shows **Sources: …** as a button that opens Configure sources; the status-bar list has it too.
-- *Not connected* issues: `.*` ports with no same-named signal, connections to ports that don't exist, extra positional connections and inputs left out are listed and the pins drawn in magenta.
-- A shortcuts sheet (`?` in the toolbar, the `?` key, or *Shortcuts* in the bottom bar) lists every key and mouse action.
-- Connections naming a port the module doesn't have are drawn struck through, and connection issues suggest the likely fix (a renamed port, a near-named signal) with a link to the module's ports.
-- Layout: fewer wire crossings, a spacing setting (Compact / Normal / Roomy), and hovering a block fades unrelated wires.
-- Clear setup requirements and an actionable message when Verible is missing.
+First public version.
 
-## 0.1.0
+**Diagram**
+- Block diagrams from SystemVerilog RTL using Verible:
+  - ports with direction arrows, instances, the module's own logic, and nets with bus widths;
+  - generate constructs, drawn with a stacked outline and a header;
+  - clocks, resets and high fan-out nets drawn as labels.
+- Logic written in a port connection (`.push(a & ~b)`) is drawn as one expression box feeding the pin.
+- Pins:
+  - open pins show `×`;
+  - pins tied to 0 show a ground symbol, and pins tied to all ones a supply bar;
+  - other constants show their value.
+- Layout is deterministic and reorders blocks to reduce wire crossings. Spacing can be set to Compact, Normal or Roomy.
+- Navigation:
+  - double-click to open a block or go up;
+  - breadcrumbs, zoom and pan, a minimap;
+  - search, with `/` to jump to it;
+  - hovering a block fades unrelated wires;
+  - a shortcuts sheet (`?`).
+- Live redraw on save, with a pause button and a list of the files changed while paused.
+- Auto, Light and Dark themes, and colour settings.
 
-First version.
+**Checks**
+- Source issues are marked on the affected blocks and listed as a session checklist:
+  - syntax errors (for a file Verible can't read, only the first error);
+  - duplicate modules;
+  - missing modules, linked to the broken file that declares them when there is one;
+  - problems with Bender manifests and filelists.
+- *Not connected*, with the pin drawn in magenta and a suggested fix:
+  - `.*` ports with no signal of the same name;
+  - connections to ports the module doesn't have (drawn struck through);
+  - extra positional connections;
+  - inputs left out of the connection list.
 
-- Block diagrams from SystemVerilog RTL using Verible: ports with direction arrows, instances, the module's own logic, nets with bus widths, open and tied pins, generate constructs.
-- Navigation: double-click to open a block or go up, breadcrumbs, zoom and pan, find, minimap, Auto / Light / Dark themes, colour settings.
-- RTL from Bender (ordered sources, path dependencies, target expressions), filelists or a glob; a project folder for workspaces holding several projects.
-- Clocks, resets and high fan-out nets drawn as labels.
-- Verification runs (`run.json` + SARIF): findings placed on the exact instance and port, resolved through generate scopes and instance arrays, with links to declarations and drivers, a finding card and Problems-panel diagnostics.
-- Notes, questions and issues on ports, wires and blocks, shared as files in `.rtl-notes/`.
+**Projects and sources**
+- RTL from Bender (ordered sources, path dependencies, target expressions), `.f` filelists, or all `.sv` / `.v` files.
+- A folder holding several projects asks which one to open instead of mixing them. Any other folder can be opened with *Browse*.
+- Sources can be chosen per project from the diagram (**Sources: …**). The choice is stored by the extension, never in the repository.
+
+**Verification findings**
+- Runs (`run.json` + SARIF 2.1.0) are found in the project or opened from anywhere.
+- Findings are placed on the exact instance and port, resolved through generate scopes and instance arrays.
+- Each finding links to its port declaration and direct drivers. Findings are worded as observations, not diagnoses.
+- Finding card: signal values, test, seed, requirement text, and a reproduce command typed (not run) into a terminal.
+- Findings also appear as diagnostics in the Problems panel.
+- A warning appears when the RTL has changed since the run's commit.
+
+**Notes**
+- Notes, questions and issues on ports, wires and blocks, shared as one JSON file per note in `.rtl-notes/`.
+- Note files are validated when read, and writes are confined to the notes folder.
+
+**Robustness**
+- No network access and no telemetry.
+- If Verible is missing, a clear message offers to set its path.
+- After an install, the diagram asks for a window reload until the new version is running.

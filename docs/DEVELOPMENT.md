@@ -19,11 +19,11 @@ npm run typecheck    # tsc, no output files
 - **As an installed extension:** build a package and install it:
 
   ```
-  npm run package:local
+  npm run package
   code --install-extension rtl-diagram-0.1.0.vsix --force
   ```
 
-  then run **Developer: Reload Window**. `package:local` passes placeholder repository options so packaging works before the project has a public repository; `npm run package` is the version to use once `repository` is set in `package.json`.
+  then run **Developer: Reload Window** in every open VS Code window. Until then VS Code keeps running the previous version (the diagram shows a banner saying so).
 
 ## Tests
 

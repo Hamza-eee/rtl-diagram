@@ -1,6 +1,6 @@
 # Roadmap
 
-Planned work, roughly in priority order within each section. Nothing here is built yet.
+Planned work, roughly in priority order within each section. **Nothing on this page is built yet**: everything that is available is in the [changelog](../CHANGELOG.md).
 
 ## Reporting
 
@@ -32,7 +32,7 @@ Planned work, roughly in priority order within each section. Nothing here is bui
 ## From the code review (remaining suggestions)
 
 - Performance: cache view graphs and send only markers when the active run changes; run ELK off the extension-host thread for large modules; re-discover sources only on create/delete or manifest changes; react to `rtlDiagram.colors.*` by re-theming only; cache extracted modules instead of whole Verible trees; add a timeout to Verible; build an edge-id map in the webview instead of repeated searches; load inactive runs lazily and lift the 500-run discovery cap.
-- Security: refuse SARIF/run paths that resolve outside the repository root and decode SARIF URIs properly; escape untrusted text in tree tooltips; restrict `rtlDiagram.veriblePath` in untrusted workspaces; generate the CSP nonce with `crypto` and drop `'unsafe-inline'` styles.
+- Security: refuse SARIF/run paths that resolve outside the repository root and decode SARIF URIs properly; escape untrusted text in tree tooltips; drop `'unsafe-inline'` styles.
 - Correctness: follow symlinked directories in globs (with a loop guard); `-f` filelist semantics and flags that take an argument; replace the repository-root fallback guess with the containing workspace folder; catch errors in webview message handling; ignore a finding detail that arrives after the user picked another finding.
 - Maintainability: shared message/marker types between host and webview; split `src/webview/main.ts`; tests for the panel and webview; run the integration suite in CI.
-- Before publishing: choose a licence (add `LICENSE` and the `license` field), set `repository` and `bugs` in package.json (this also makes README images work on the Marketplace), a real publisher ID, an extension icon (`icon`, 128×128 PNG), remove `"private": true`.
+- Platforms: test on Linux and Windows.
