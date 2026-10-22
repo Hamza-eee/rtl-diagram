@@ -100,7 +100,7 @@ export class DiagramPanel implements vscode.Disposable {
     const seq = ++this.renderSeq;
     const d = this.store.design;
     if (!d || !Object.keys(d.modules).length) {
-      void this.panel.webview.postMessage({ type: 'empty', scanning: this.store.scanning, error: this.store.lastError, sourceMode: d?.sourceMode });
+      void this.panel.webview.postMessage({ type: 'empty', scanning: this.store.scanning, error: this.store.lastError, veribleMissing: this.store.veribleMissing, sourceMode: d?.sourceMode });
       return;
     }
     if (!this.top || !d.modules[this.top]) {
@@ -313,6 +313,9 @@ export class DiagramPanel implements vscode.Disposable {
         return;
       case 'setLive':
         await this.store.setLive(!!m.on);
+        return;
+      case 'openSetting':
+        if (typeof m.key === 'string' && m.key.startsWith('rtlDiagram.')) await vscode.commands.executeCommand('workbench.action.openSettings', m.key);
         return;
       case 'refresh':
         await vscode.commands.executeCommand('rtlDiagram.refresh');

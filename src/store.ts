@@ -25,6 +25,7 @@ export class Store implements vscode.Disposable {
   activeRun?: Run;
   resolutions = new Map<number, Resolution>();
   scanning = false;
+  veribleMissing = false;
   lastError?: string;
 
   notes: StoredNote[] = [];
@@ -85,10 +86,19 @@ export class Store implements vscode.Disposable {
       this.resolveAll();
     } catch (e: any) {
       this.lastError = e.message;
-      vscode.window.showErrorMessage(`RTL Diagram: ${e.message}`);
+      this.veribleMissing = /Verible not found/.test(e.message);
+      void vscode.commands.executeCommand('setContext', 'rtlDiagram.veribleMissing', this.veribleMissing);
+      const SET = 'Set Verible path…';
+      void vscode.window.showErrorMessage(`RTL Diagram: ${e.message}`, ...(this.veribleMissing ? [SET] : [])).then(a => {
+        if (a === SET) void vscode.commands.executeCommand('workbench.action.openSettings', 'rtlDiagram.veriblePath');
+      });
     } finally {
       this.scanning = false;
       this.pending.clear();
+      if (!this.lastError && this.veribleMissing) {
+        this.veribleMissing = false;
+        void vscode.commands.executeCommand('setContext', 'rtlDiagram.veribleMissing', false);
+      }
       this._onDidChange.fire('design');
     }
   }

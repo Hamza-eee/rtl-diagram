@@ -43,7 +43,7 @@ function run(verible: string, files: string[]): Promise<string> {
         if (err) {
           const e = err as NodeJS.ErrnoException;
           if (e.code === 'ENOENT') {
-            return reject(new Error(`Verible not found at "${verible}". Install Verible or set rtlDiagram.veriblePath.`));
+            return reject(new Error(`Verible not found ("${verible}"). RTL Diagram needs verible-verilog-syntax to read SystemVerilog: install Verible (macOS: brew install verible) or set rtlDiagram.veriblePath to its full path.`));
           }
           return reject(new Error(`Verible failed: ${stderr || err.message}`));
         }

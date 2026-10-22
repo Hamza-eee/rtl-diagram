@@ -1288,7 +1288,10 @@ window.addEventListener('message', ev => {
       overlay.replaceChildren(h('div', { class: 'empty' },
         h('h2', {}, m.scanning ? 'Reading the RTL…' : m.error ? 'Could not parse the RTL' : 'No SystemVerilog modules found'),
         h('p', { class: 'muted' }, m.scanning ? 'Parsing source files with Verible.' : m.error ?? 'Add a Bender.yml, set rtlDiagram.filelists, or adjust rtlDiagram.include, then rescan.'),
-        m.sourceMode ? h('p', { class: 'muted mono' }, m.sourceMode) : null));
+        m.sourceMode ? h('p', { class: 'muted mono' }, m.sourceMode) : null,
+        m.veribleMissing ? h('div', { class: 'actions center' },
+          h('button', { class: 'act primary', onclick: () => vscode.postMessage({ type: 'openSetting', key: 'rtlDiagram.veriblePath' }) }, 'Set Verible path…'),
+          h('button', { class: 'act', onclick: () => vscode.postMessage({ type: 'refresh' }) }, 'Rescan')) : null));
       renderDrawer();
       break;
   }

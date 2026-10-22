@@ -390,3 +390,5 @@ ul.plain li { padding: 2px 0; }
 .fresh-warn { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.45;
   background: color-mix(in srgb, var(--c-warn) 12%, transparent); box-shadow: inset 3px 0 0 var(--c-warn); }
 .fresh-warn ul.plain { margin: 4px 0 0; }
+
+.actions.center { justify-content: center; }

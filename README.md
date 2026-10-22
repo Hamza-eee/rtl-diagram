@@ -17,6 +17,16 @@ RTL Diagram draws your design hierarchy straight from the RTL, so designers and 
 
 ![Inside u_timer in the dark theme: a generate loop of timer cores, bus widths and a warning on the expired output](docs/images/drill-in-dark.png)
 
+## Requirements
+
+| | Needed for | How to get it |
+|---|---|---|
+| **VS Code 1.90 or later** | everything | [code.visualstudio.com](https://code.visualstudio.com) |
+| **Verible** (`verible-verilog-syntax`) | reading SystemVerilog. **Required.** Tested with v0.0-3946. | macOS: `brew install verible`. Linux and Windows: download a release from [chipsalliance/verible](https://github.com/chipsalliance/verible/releases), unpack it, and put its `bin` folder on your `PATH`, or set `rtlDiagram.veriblePath` to the full path of `verible-verilog-syntax`. Check with `verible-verilog-syntax --version`. |
+| **git** | optional: telling whether a verification run still matches the RTL, and the author name on notes | usually already installed; without it, file times are compared instead and notes use your system user name |
+
+Nothing else is needed: no simulator, no license, no Python, no network access. If Verible is missing, the Hierarchy view and the diagram say so and offer a button to set its path.
+
 ## Quick start
 
 1. Install Verible so that `verible-verilog-syntax` is on your `PATH`:

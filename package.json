@@ -45,7 +45,13 @@
     "viewsWelcome": [
       {
         "view": "rtlDiagram.hierarchy",
-        "contents": "No SystemVerilog modules found yet.\n[Choose project folder](command:rtlDiagram.chooseProject)\n[Rescan](command:rtlDiagram.refresh)\nSources come from Bender.yml, a .f filelist, or the rtlDiagram.include glob."
+        "when": "rtlDiagram.veribleMissing",
+        "contents": "Verible was not found. RTL Diagram uses its verible-verilog-syntax tool to read SystemVerilog.\nInstall it (macOS: brew install verible; Linux and Windows: a release from github.com/chipsalliance/verible), or point the extension to it:\n[Set Verible path](command:workbench.action.openSettings?%5B%22rtlDiagram.veriblePath%22%5D)\n[Rescan](command:rtlDiagram.refresh)"
+      },
+      {
+        "view": "rtlDiagram.hierarchy",
+        "contents": "No SystemVerilog modules found yet.\n[Choose project folder](command:rtlDiagram.chooseProject)\n[Rescan](command:rtlDiagram.refresh)\nSources come from Bender.yml, a .f filelist, or the rtlDiagram.include glob.",
+        "when": "!rtlDiagram.veribleMissing"
       },
       {
         "view": "rtlDiagram.runs",
