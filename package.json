@@ -4,7 +4,7 @@
   "description": "Block diagrams of SystemVerilog RTL with verification findings and team notes on the ports they name.",
   "version": "0.1.0",
   "publisher": "rtl-diagram",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "private": true,
   "engines": {
     "vscode": "^1.90.0"
