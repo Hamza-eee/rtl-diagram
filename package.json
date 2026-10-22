@@ -107,6 +107,11 @@
         "command": "rtlDiagram.activateRun",
         "title": "Activate Run",
         "category": "RTL Diagram"
+      },
+      {
+        "command": "rtlDiagram.toggleLive",
+        "title": "Toggle Live Updates",
+        "category": "RTL Diagram"
       }
     ],
     "menus": {
@@ -159,6 +164,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Folder to read RTL, verification runs and notes from (absolute, or relative to the first workspace folder). Empty: use the folder chosen with **RTL Diagram: Choose Project Folder\u2026**, or the whole workspace."
+        },
+        "rtlDiagram.liveUpdate": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Redraw the diagram whenever an RTL file is saved. When off, the diagram stays as drawn and a banner lists the changed files with a Refresh button. The toolbar's Live button toggles this per workspace."
         },
         "rtlDiagram.veriblePath": {
           "type": "string",

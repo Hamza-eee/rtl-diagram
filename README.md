@@ -41,6 +41,7 @@ If you opened a parent folder holding several projects, the extension offers to 
 | Fit, zoom | `F`, `+`, `-`, `0` for 100%, or the mouse wheel / trackpad pinch |
 | Find a block or port | `/`, then type |
 | Switch theme | The toolbar button cycles Auto, Light and Dark |
+| Pause redrawing | The toolbar's **Live** button. While paused, the diagram stays as drawn and a banner lists the RTL files saved since, with *Refresh* |
 | Add a note | Right-click a port, pin, wire, block or empty space |
 
 ### Reading the diagram
@@ -72,6 +73,8 @@ The **Verification runs** view lists every run folder it finds (by default `**/r
 
 Runs are plain files: a `run.json` manifest and a SARIF 2.1.0 `findings.sarif`. Any testbench, script or agent can write them. The format is described in [docs/run-format.md](docs/run-format.md), and `test-fixtures/sample-soc` has complete examples.
 
+**Is the RTL still what the run tested?** A run records the git commit it was taken from. The extension compares that commit with your working tree and says so in the run header: *RTL matches*, *changed since this run* (listing the RTL files that differ), or why it can't tell (the commit isn't in this repository, or the run had uncommitted changes). Findings in a changed file carry a warning on their card and in the Problems panel. Without git, file times are compared with the run's finish time.
+
 **Type in terminal** on a finding types its reproduce command into a new terminal without running it. Commands containing line breaks or control characters are refused; copy those instead.
 
 ## Notes
@@ -99,6 +102,7 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 | Setting | Default | Description |
 |---|---|---|
 | `rtlDiagram.projectFolder` | *(empty)* | Folder to read RTL, runs and notes from. Empty: the folder chosen with *Choose Project Folder…*, or the whole workspace. |
+| `rtlDiagram.liveUpdate` | `true` | Redraw when RTL files are saved. Off: keep the diagram and list changed files. |
 | `rtlDiagram.veriblePath` | `verible-verilog-syntax` | Verible syntax tool. |
 | `rtlDiagram.sourceMode` | `auto` | `auto`, `bender`, `filelist` or `glob`. |
 | `rtlDiagram.benderRoots` | `[]` | Only use these folders' `Bender.yml` as roots. |
@@ -123,6 +127,7 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 | RTL Diagram: Choose Top Module… | Pick which top module the diagram starts from. |
 | RTL Diagram: Open Run Folder… | Load a run directory from anywhere on disk. |
 | RTL Diagram: Clear Active Run | Hide findings. |
+| RTL Diagram: Toggle Live Updates | Pause or resume redrawing on save. |
 | RTL Diagram: Rescan Sources and Runs | Re-read everything. |
 | RTL Diagram: Show Source Files | List the RTL files in use. |
 

@@ -32,7 +32,9 @@ export class RunsTree implements vscode.TreeDataProvider<RunNode> {
         const it = new vscode.TreeItem(r.runId, active ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed);
         const t = r.totals?.findings;
         const counts = t ? [t.error && `${t.error} error${t.error > 1 ? 's' : ''}`, t.warning && `${t.warning} warning${t.warning > 1 ? 's' : ''}`].filter(Boolean).join(', ') : '';
-        it.description = `${active ? '● ' : ''}${r.testbench}${counts ? ' · ' + counts : ''}`;
+        const fresh = active ? this.store.freshness : undefined;
+        const staleTag = fresh?.state === 'changed' ? ' · RTL changed since run' : fresh?.state === 'unknown' ? ' · RTL match unknown' : '';
+        it.description = `${active ? '● ' : ''}${r.testbench}${counts ? ' · ' + counts : ''}${staleTag}`;
         it.iconPath = r.broken ? new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('problemsErrorIcon.foreground'))
           : r.status === 'pass' ? new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'))
           : new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'));

@@ -20,9 +20,14 @@ interface NoteView {
 }
 interface NoteMark { ids: string[]; kind: NoteKind; resolved: boolean; inside: boolean }
 interface NotesMsg { marks: Record<string, NoteMark>; here: string[]; all: NoteView[]; issues: string[] }
+interface LiveState { on: boolean; pending: string[] }
 interface ViewMsg {
   graph: ViewGraph; crumbs: Crumb[]; markers: Markers; findings: FindingRow[]; notes: NotesMsg; path: string[];
-  run: { id: string; status: string; dutTop: string; testbench: string; broken: boolean } | null;
+  run: {
+    id: string; status: string; dutTop: string; testbench: string; broken: boolean; commit?: string; dirty: boolean;
+    freshness: { state: 'same' | 'changed' | 'unknown'; reason: string; changed: { file: string; rel: string }[] } | null;
+  } | null;
+  live: LiveState;
   sourceMode: string; tops: string[]; top: string; select?: { finding?: number; node?: string; note?: string };
 }
 
@@ -40,6 +45,7 @@ let tab: 'findings' | 'notes' | 'details' = 'findings';
 let draft: { anchor: NoteAnchor; label: string; scope: { top: string; instPath: string[] } | null; kind: NoteKind; text: string; onlyHere: boolean } | null = null;
 let editing: { id: string; text: string; kind: NoteKind } | null = null;
 let focusNotes: string[] = [];
+let live: LiveState = { on: true, pending: [] };
 let drawerOpen = true;
 let themeMode: 'auto' | 'light' | 'dark' = 'auto';
 let portGroupColors: Record<string, string> = {};
@@ -107,6 +113,8 @@ const findResults = h('ul', { class: 'find-results', role: 'listbox', hidden: tr
 const zoomLabel = h('button', { class: 'zoom-label', title: 'Reset to 100% (0)' }, '100%');
 const themeBtn = h('button', { class: 'tb-btn', title: 'Theme: follow VS Code' }, icon('theme'), h('span', { class: 'tb-btn-label' }, 'Auto'));
 const drawerBtn = h('button', { class: 'tb-btn', title: 'Toggle side panel' }, icon('drawer'));
+const liveBtn = h('button', { class: 'tb-btn live-btn', 'aria-pressed': 'true' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), h('span', { class: 'tb-btn-label' }, 'Live'));
+liveBtn.addEventListener('click', () => vscode.postMessage({ type: 'setLive', on: !live.on }));
 const upBtn = h('button', { class: 'tb-btn', title: 'Up one level (Backspace)' }, icon('up'));
 toolbar.append(
   upBtn, crumbsEl,
@@ -118,7 +126,7 @@ toolbar.append(
     h('button', { class: 'tb-btn', title: 'Zoom in (+)', onclick: () => zoomBy(1.25) }, icon('plus')),
     h('button', { class: 'tb-btn', title: 'Fit to window (F)', onclick: () => fit(true) }, icon('fit')),
   ),
-  themeBtn, drawerBtn,
+  liveBtn, themeBtn, drawerBtn,
 );
 const stage = h('main', { class: 'stage', tabindex: '0', 'aria-label': 'Block diagram' });
 const svg = s('svg', { class: 'canvas', role: 'img' });
@@ -138,8 +146,9 @@ const miniSvg = s('svg', { class: 'mini' });
 minimap.append(miniSvg);
 const overlay = h('div', { class: 'overlay', hidden: true });
 const moduleNotesChip = h('button', { class: 'module-notes', hidden: true });
+const pendingBanner = h('div', { class: 'pending-banner', role: 'status', hidden: true });
 const ctxMenu = h('div', { class: 'ctxmenu', role: 'menu', hidden: true });
-stage.append(svg, tooltip, minimap, moduleNotesChip, ctxMenu, overlay);
+stage.append(svg, tooltip, minimap, moduleNotesChip, pendingBanner, ctxMenu, overlay);
 
 const drawer = h('aside', { class: 'drawer', 'aria-label': 'Findings and details' });
 const statusEl = h('footer', { class: 'status' });
@@ -283,6 +292,8 @@ function render(msg: ViewMsg) {
   drawMarkers(msg);
   drawNotes(msg);
   svg.setAttribute('aria-label', `Block diagram of ${g.module}: ${g.stats.instances} instances, ${g.stats.ports} ports`);
+  live = msg.live ?? live;
+  renderLive();
   renderCrumbs();
   renderStatus();
   renderMinimap();
@@ -637,6 +648,23 @@ zoomLabel.addEventListener('click', () => {
   zoomAt(b.width / 2, b.height / 2, 1 / T.k);
 });
 
+/** Live toggle and, when paused, the banner listing RTL files saved since the diagram was drawn. */
+function renderLive() {
+  liveBtn.classList.toggle('paused', !live.on);
+  liveBtn.setAttribute('aria-pressed', String(live.on));
+  liveBtn.querySelector('.tb-btn-label')!.textContent = live.on ? 'Live' : 'Paused';
+  liveBtn.title = live.on
+    ? 'Live: the diagram redraws when RTL files are saved. Click to pause.'
+    : 'Paused: the diagram stays as drawn. Click to go live (and refresh).';
+  const n = live.pending.length;
+  pendingBanner.hidden = live.on || n === 0;
+  if (pendingBanner.hidden) return;
+  pendingBanner.replaceChildren(
+    h('span', { title: live.pending.join('\n') }, `RTL changed since this diagram was drawn: ${n} file${n === 1 ? '' : 's'} (${live.pending.slice(0, 2).join(', ')}${n > 2 ? ', …' : ''})`),
+    h('button', { class: 'act primary', onclick: () => vscode.postMessage({ type: 'refresh' }) }, 'Refresh'),
+    h('button', { class: 'act', onclick: () => vscode.postMessage({ type: 'setLive', on: true }) }, 'Go live'));
+}
+
 function renderStatus() {
   if (!view) return;
   const g = view.graph;
@@ -779,12 +807,26 @@ function runHeader() {
   return h('div', { class: `run-head st-${r.broken ? 'broken' : r.status}` },
     h('div', { class: 'run-title' }, h('span', { class: 'run-state' }, r.broken ? 'Broken run' : r.status === 'pass' ? 'Passed' : 'Failed'), h('span', { class: 'mono' }, r.id)),
     h('div', { class: 'muted' }, `${r.testbench} · DUT ${r.dutTop}`),
+    freshnessNote(r),
     view!.markers.byModule ? h('div', { class: 'warn small' }, `${r.dutTop} is not instantiated exactly once under ${view!.top}, so findings are shown on every instance of the flagged module.`) : null,
     h('div', { class: 'run-counts' },
       h('span', { class: 'cnt lvl-error' }, `${n('error')} error${n('error') === 1 ? '' : 's'}`),
       h('span', { class: 'cnt lvl-warning' }, `${n('warning')} warning${n('warning') === 1 ? '' : 's'}`),
       h('span', { class: 'cnt lvl-note' }, `${n('note')} note${n('note') === 1 ? '' : 's'}`)),
   );
+}
+
+/** Does the RTL still match what this run was taken from? */
+function freshnessNote(r: NonNullable<ViewMsg['run']>) {
+  const f = r.freshness;
+  if (!f) return h('div', { class: 'muted small fresh' }, 'Checking whether the RTL matches this run…');
+  if (f.state === 'same') return h('div', { class: 'muted small fresh ok' }, f.reason);
+  if (f.state === 'unknown') return h('div', { class: 'muted small fresh' }, f.reason);
+  return h('div', { class: 'fresh-warn' },
+    h('div', {}, h('strong', {}, 'RTL changed since this run. '), f.reason, ' Findings in these files may point at code the test never ran:'),
+    h('ul', { class: 'plain' }, ...f.changed.slice(0, 6).map(c =>
+      h('li', {}, h('button', { class: 'link mono', onclick: () => vscode.postMessage({ type: 'openFile', file: c.file, line: 0 }) }, c.rel)))),
+    f.changed.length > 6 ? h('div', { class: 'muted small' }, `and ${f.changed.length - 6} more`) : null);
 }
 
 function findingsList() {
@@ -886,6 +928,7 @@ function findingCard(f: any) {
       f.rule?.channel ? h('span', { class: 'chip ghost' }, f.rule.channel) : null),
     f.rule?.short ? h('div', { class: 'fc-short' }, f.rule.short) : null,
     h('p', { class: 'fc-msg' }, f.message),
+    f.moduleChanged ? h('p', { class: 'fresh-warn small' }, 'This module\'s file changed since the run. The declaration and drivers below are from the current code, which may not be what the test ran.') : null,
   ));
 
   // Observed at: where the testbench saw the problem. Deliberately not phrased as a cause.
@@ -1209,6 +1252,10 @@ window.addEventListener('message', ev => {
   switch (m.type) {
     case 'view':
       render(m);
+      break;
+    case 'live':
+      live = m.live;
+      renderLive();
       break;
     case 'detail':
       detail = m.finding;

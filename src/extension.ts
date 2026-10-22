@@ -49,7 +49,8 @@ export async function activate(ctx: vscode.ExtensionContext) {
       if (!loc) continue;
       const range = new vscode.Range(loc.line, loc.col, loc.endLine, loc.endCol);
       const sev = f.level === 'error' ? vscode.DiagnosticSeverity.Error : f.level === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Information;
-      const d = new vscode.Diagnostic(range, `${f.message} [${f.props.test ?? ''}${f.props.seed !== undefined ? `, seed ${f.props.seed}` : ''}]`, sev);
+      const stale = store.moduleChanged(store.resolutions.get(f.index)?.primary?.module) ? ' (this file changed since the run)' : '';
+      const d = new vscode.Diagnostic(range, `${f.message} [${f.props.test ?? ''}${f.props.seed !== undefined ? `, seed ${f.props.seed}` : ''}]${stale}`, sev);
       d.source = `verif ${run.runId}`;
       d.code = f.ruleId;
       (byFile.get(loc.file) ?? byFile.set(loc.file, []).get(loc.file)!).push(d);
@@ -89,6 +90,10 @@ export async function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('rtlDiagram.showFinding', (dir: string, idx: number) => {
       if (store.activeRun?.dir !== dir) store.setActive(store.runs.find(r => r.dir === dir));
       openPanel().showFinding(idx);
+    }),
+    vscode.commands.registerCommand('rtlDiagram.toggleLive', async () => {
+      await store.setLive(!store.live());
+      vscode.window.setStatusBarMessage(store.live() ? 'RTL Diagram: live updates on' : 'RTL Diagram: live updates paused', 2500);
     }),
     vscode.commands.registerCommand('rtlDiagram.chooseProject', async () => {
       const roots = (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
@@ -132,6 +137,8 @@ export async function activate(ctx: vscode.ExtensionContext) {
   let t: NodeJS.Timeout | undefined;
   const schedule = (uri?: vscode.Uri) => {
     if (uri && !store.inScope(uri.fsPath)) return;
+    // Paused: remember the change and leave the diagram as drawn (a banner offers Refresh).
+    if (uri && !store.live()) { store.markPending(uri.fsPath); return; }
     if (uri) clearCache(uri.fsPath);
     if (t) clearTimeout(t);
     t = setTimeout(() => void store.rescanDesign(), 600);

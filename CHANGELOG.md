@@ -4,6 +4,11 @@ All notable changes to this extension are listed here.
 
 ## Unreleased
 
+- Warn when the RTL has changed since a verification run's commit, in the run header, on affected finding cards and in the Problems panel.
+- Live toggle: pause redrawing on save; a banner lists changed files with Refresh.
+- Findings are worded as observations ("Observed at", "Direct drivers … not a diagnosis").
+- Note files are validated, and note writes are confined to the notes folder.
+
 ## 0.1.0
 
 First version.

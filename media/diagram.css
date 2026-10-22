@@ -374,3 +374,19 @@ ul.plain li { padding: 2px 0; }
 .link.danger { color: var(--c-err); }
 .tip-note { margin: 2px 0; }
 .tip-note .chip { background: var(--nk); }
+
+/* ---------- live updates and run freshness */
+.live-btn .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--vscode-testing-iconPassed, #2ea043); }
+.live-btn.paused .live-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+.live-btn.paused { color: var(--muted); }
+.pending-banner { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 8px;
+  max-width: calc(100% - 40px); padding: 6px 8px 6px 12px; border-radius: 8px; font-size: 12px;
+  background: color-mix(in srgb, var(--c-warn) 14%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-warn) 45%, transparent), 0 4px 14px rgba(0,0,0,.12); }
+.pending-banner[hidden] { display: none; }
+.pending-banner .act { white-space: nowrap; flex: none; }
+.pending-banner > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fresh { margin-top: 6px; }
+.fresh.ok::before { content: '✓ '; color: var(--vscode-testing-iconPassed, #2ea043); }
+.fresh-warn { margin-top: 8px; padding: 8px 10px; border-radius: 6px; font-size: 12px; line-height: 1.45;
+  background: color-mix(in srgb, var(--c-warn) 12%, transparent); box-shadow: inset 3px 0 0 var(--c-warn); }
+.fresh-warn ul.plain { margin: 4px 0 0; }

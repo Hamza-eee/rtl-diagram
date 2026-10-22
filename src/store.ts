@@ -16,6 +16,7 @@ import * as os from 'os';
 import { MAX_NOTE_LENGTH, Note, NoteAnchor, NoteKind, NOTE_KINDS, StoredNote, isAnchor, isInside, isNote, loadNotes, newNoteId, safeNotesFolder, writeNote } from './notes/notes';
 import * as fs from 'fs';
 import { Serial } from './util/serial';
+import { Freshness, GitRunner, runFreshness } from './findings/freshness';
 
 export class Store implements vscode.Disposable {
   design?: Design;
@@ -30,7 +31,13 @@ export class Store implements vscode.Disposable {
   noteIssues: string[] = [];
   private authors = new Map<string, string>();
 
-  private readonly _onDidChange = new vscode.EventEmitter<'design' | 'runs' | 'active' | 'notes'>();
+  /** Does the parsed RTL still match the active run's source? Recomputed with every resolve. */
+  freshness?: Freshness;
+  private freshSeq = 0;
+  /** RTL files saved while live updates are paused (the diagram is not redrawn until refreshed). */
+  pending = new Set<string>();
+
+  private readonly _onDidChange = new vscode.EventEmitter<'design' | 'runs' | 'active' | 'notes' | 'pending'>();
   readonly onDidChange = this._onDidChange.event;
 
   constructor(private ctx: vscode.ExtensionContext) {}
@@ -81,6 +88,7 @@ export class Store implements vscode.Disposable {
       vscode.window.showErrorMessage(`RTL Diagram: ${e.message}`);
     } finally {
       this.scanning = false;
+      this.pending.clear();
       this._onDidChange.fire('design');
     }
   }
@@ -238,8 +246,50 @@ export class Store implements vscode.Disposable {
 
   private resolveAll() {
     this.resolutions.clear();
+    this.freshness = undefined;
+    const seq = ++this.freshSeq;
     if (!this.activeRun || !this.design) return;
     for (const f of this.activeRun.findings) this.resolutions.set(f.index, resolveFinding(this.design, this.activeRun, f));
+    void this.checkFreshness(seq);
+  }
+
+  /** Compare the parsed RTL with the active run's commit (git, read-only), then notify views. */
+  private async checkFreshness(seq: number) {
+    const run = this.activeRun, d = this.design;
+    if (!run || !d) return;
+    const git: GitRunner = (args, cwd) => new Promise(resolve =>
+      execFile('git', args, { cwd, timeout: 5000, maxBuffer: 16 * 1024 * 1024 }, (err, out) => resolve({ ok: !err, out: String(out ?? '') })));
+    const anchor = d.modules[run.dutTop]?.file ? path.dirname(d.modules[run.dutTop].file) : (this.roots()[0] ?? run.dir);
+    try {
+      const f = await runFreshness({ gitCommit: run.gitCommit, dirty: run.dirty, finishedAt: run.finishedAt }, d.files, anchor, git);
+      if (seq !== this.freshSeq) return;            // a newer design/run superseded this check
+      this.freshness = f;
+      this._onDidChange.fire('active');
+    } catch { /* leave unknown */ }
+  }
+
+  /** True if the module's source file differs from the active run's source. */
+  moduleChanged(module: string | undefined): boolean {
+    const file = module && this.design?.modules[module]?.file;
+    return !!file && !!this.freshness?.changed.includes(path.resolve(file));
+  }
+
+  // ---------------------------------------------------------------- live updates
+
+  /** Live: redraw on every RTL save (the default). Paused: keep the diagram, list what changed. */
+  live(): boolean {
+    return this.ctx.workspaceState.get<boolean>('liveUpdate') ?? this.cfg().get<boolean>('liveUpdate', true);
+  }
+
+  async setLive(on: boolean) {
+    await this.ctx.workspaceState.update('liveUpdate', on);
+    if (on && this.pending.size) { this.pending.clear(); await this.rescanDesign(); }
+    this._onDidChange.fire('pending');
+  }
+
+  markPending(file: string) {
+    this.pending.add(file);
+    this._onDidChange.fire('pending');
   }
 
   tops(): string[] { return this.design ? topCandidates(this.design) : []; }

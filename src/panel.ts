@@ -44,7 +44,7 @@ export class DiagramPanel implements vscode.Disposable {
     this.disposables.push(
       this.panel.onDidDispose(() => this.dispose()),
       this.panel.webview.onDidReceiveMessage(m => this.onMessage(m)),
-      store.onDidChange(() => this.render()),
+      store.onDidChange(e => { if (e === 'pending') this.postLive(); else void this.render(); }),
       vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('rtlDiagram')) this.postTheme(); }),
     );
     const saved = ctx.workspaceState.get<{ top: string; path: string[] }>('view');
@@ -143,12 +143,29 @@ export class DiagramPanel implements vscode.Disposable {
     this.panel.title = `RTL · ${m.name}`;
     void this.panel.webview.postMessage({
       type: 'view', graph, crumbs, markers: this.store.markersFor(this.top, this.path),
-      run: run ? { id: run.runId, status: run.status, dutTop: run.dutTop, testbench: run.testbench, broken: run.broken } : null,
+      run: run ? {
+        id: run.runId, status: run.status, dutTop: run.dutTop, testbench: run.testbench, broken: run.broken,
+        commit: run.gitCommit?.slice(0, 10), dirty: !!run.dirty,
+        freshness: this.store.freshness ? {
+          state: this.store.freshness.state, reason: this.store.freshness.reason,
+          changed: this.store.freshness.changed.map(f => ({ file: f, rel: vscode.workspace.asRelativePath(f) })),
+        } : null,
+      } : null,
+      live: this.liveState(),
       findings, notes, path: this.path, sourceMode: d.sourceMode, tops: this.store.tops(), top: this.top,
       select: this.pendingSelect,
     });
     if (this.pendingSelect?.finding !== undefined) this.sendDetail(this.pendingSelect.finding);
     this.pendingSelect = undefined;
+  }
+
+  private liveState() {
+    return { on: this.store.live(), pending: [...this.store.pending].sort().map(f => vscode.workspace.asRelativePath(f)) };
+  }
+
+  /** Live/pending changes only need the banner and toggle updated, not a new layout. */
+  private postLive() {
+    if (this.ready) void this.panel.webview.postMessage({ type: 'live', live: this.liveState() });
   }
 
   showFinding(idx: number) {
@@ -214,6 +231,8 @@ export class DiagramPanel implements vscode.Disposable {
         dutTop: run.dutTop, dutInstance: run.dutInstance, runId: run.runId,
         // Contract: `reproduce` runs from the testbench directory, i.e. reports/<run_id>/../..
         tbDir: path.dirname(path.dirname(run.dir)),
+        moduleChanged: this.store.moduleChanged(res?.primary?.module),
+        freshness: this.store.freshness ? { state: this.store.freshness.state, reason: this.store.freshness.reason } : null,
       },
     });
   }
@@ -291,6 +310,12 @@ export class DiagramPanel implements vscode.Disposable {
       }
       case 'gotoNote':
         this.gotoNote(m.id);
+        return;
+      case 'setLive':
+        await this.store.setLive(!!m.on);
+        return;
+      case 'refresh':
+        await vscode.commands.executeCommand('rtlDiagram.refresh');
         return;
       case 'setTheme':
         await this.ctx.workspaceState.update('theme', m.mode);
