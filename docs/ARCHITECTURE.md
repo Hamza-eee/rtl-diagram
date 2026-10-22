@@ -62,7 +62,7 @@ flowchart LR
 | `notes/notes.ts` | Note files (validated, writes confined to the notes folder), anchors, detached detection, placement. |
 | `graph.ts` | One module's view: ports, instances, the logic block, expression boxes, nets, net labels, tied pins; ELK layout. |
 | `panel.ts` | The diagram panel: navigation state, messages to and from the webview, finding details, note actions. |
-| `views/*.ts` | The Hierarchy and Verification runs trees. |
+| `views/*.ts` | The Hierarchy and Verification reports trees. |
 | `util/` | Project detection, glob expansion, the serial rescan queue. |
 
 Everything except `extension.ts`, `store.ts`, `panel.ts` and `views/` is free of the VS Code API, which is what makes it unit-testable.

@@ -54,4 +54,4 @@ Fixtures must stay original: no third-party or proprietary RTL.
 
 ## Layout
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together.

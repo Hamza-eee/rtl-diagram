@@ -24,7 +24,7 @@ Static checks need nothing but your RTL. Showing test failures needs a **verific
 2. The test results are turned into a verification report, which is a folder with two JSON files. `run.json` says when the tests ran, on which git commit and for which design module. `findings.sarif` lists every failed check, in [SARIF](https://sarifweb.azurewebsites.net/), a standard format for tool results. Each failed check is called a **finding**. It names the signal where the problem was seen, and carries what was expected and observed, the test name, the random seed, the signal values and the command that reproduces the failure.
 3. RTL Diagram reads the folder and marks every finding on the port it names.
 
-**What exists today:** the extension reads this format, and the format is [documented](docs/run-format.md), with complete examples in `test-fixtures/sample-soc`. Reports can be written by hand, by your own script, or by an AI agent following the format.
+**What exists today:** the extension reads this format, and the format is [documented](docs/run-format.md), with complete examples in [`test-fixtures/sample-soc`](https://github.com/Hamza-eee/rtl-diagram/tree/main/test-fixtures/sample-soc). Reports can be written by hand, by your own script, or by an AI agent following the format.
 **What is planned:** a report script that creates the reports from cocotb, AVL, Verilator and SystemVerilog/UVM test results, and ready-made instructions for AI agents. See the [roadmap](docs/ROADMAP.md#reporting).
 
 ## For RTL designers
@@ -56,11 +56,14 @@ You are an RTL designer and want to see how far an AI agent can drive verificati
 
 What is planned: ready-made instructions for AI agents (agent definitions and prompts you copy into your project), so that an agent writes reports in the right format. Today, the report format is documented, so an agent can already be told to follow it. See the [roadmap](docs/ROADMAP.md#reporting).
 
-## What it is not
+## Limitations
 
-- **Not a linter.** It reports what stops the RTL from being parsed or connected, nothing more. For lint rules, use `verible-verilog-lint`, which comes with the Verible install this extension already needs.
-- **Not an elaborator.** Parameters use their default values, and generate loops are drawn once instead of expanded.
+- **Similar to linting, but not a linter.** The checks cover what stops the RTL from being parsed or connected, not coding-style or other lint rules. For those, use `verible-verilog-lint`, which comes with the Verible install this extension already needs.
+- **No elaboration.** Parameters use their default values, and generate loops are drawn once instead of expanded.
+- **Interfaces and modports** are drawn as plain ports, and state machines inside a module are not drawn.
 - **Not a synthesis schematic.** It shows modules, instances and the wires between them, not gates.
+
+The full list is in [Troubleshooting and limitations](docs/guide/troubleshooting.md#limitations).
 
 Connectivity comes from [Verible](https://github.com/chipsalliance/verible)'s syntax tree, never from guessing by name, so the same RTL always gives the same diagram.
 
@@ -70,9 +73,9 @@ Connectivity comes from [Verible](https://github.com/chipsalliance/verible)'s sy
    - macOS: `brew install verible`;
    - Linux and Windows: download a [release](https://github.com/chipsalliance/verible/releases) and add its `bin` folder to your `PATH`, or set `rtlDiagram.veriblePath` to the full path.
 
-   Check with `verible-verilog-syntax --version`.
+   Check with `verible-verilog-syntax --version`. Tested with Verible v0.0-3946.
 2. **Install the extension.** Download the `.vsix` file from the [releases page](https://github.com/Hamza-eee/rtl-diagram/releases), then in VS Code run **Extensions: Install from VSIX…** (VS Code 1.90 or later).
-3. **Open a folder with your RTL**, click the **RTL Diagram** icon in the activity bar, and click a module in **Hierarchy**.
+3. **Open a folder with your RTL**, click the **RTL Diagram** icon in the activity bar, and click a module in the **Hierarchy** list in the side bar (it shows each module and the blocks inside it).
 
 Nothing else is needed: no simulator, no licence server, no Python. git is optional; it names note authors and tells whether a verification report still matches the RTL. Press `?` in the diagram for every shortcut.
 
