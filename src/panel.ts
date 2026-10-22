@@ -135,7 +135,7 @@ export class DiagramPanel implements vscode.Disposable {
       return {
         index: f.index, ruleId: f.ruleId, level: f.level, message: f.message,
         signal: r?.primary?.signal ?? primaryOf(f)?.name ?? '', module: r?.primary?.module,
-        resolved: r?.primary?.status === 'ok', here: r?.primary?.module === m!.name,
+        resolved: r?.primary?.status === 'ok', here: r?.primary?.status === 'ok' && r?.primary?.module === m!.name,
       };
     }) : [];
     const nm = noteMarksFor(d, this.store.notes, this.top, this.path);

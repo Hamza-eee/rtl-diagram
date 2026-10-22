@@ -58,10 +58,10 @@ export async function runFreshness(run: RunSource, files: string[], anchorDir: s
   if (run.dirty) {
     return { state: changed.length ? 'unknown' : 'same', changed, method: 'git',
       reason: changed.length
-        ? `The run was taken from commit ${short} with uncommitted changes, so it can't be told whether the ${changed.length} RTL file${changed.length === 1 ? '' : 's'} differing from that commit match what was simulated.`
+        ? `The tests ran on commit ${short} with uncommitted changes, so it can't be told whether the ${changed.length} RTL file${changed.length === 1 ? '' : 's'} differing from that commit match what was simulated.`
         : `RTL matches commit ${short} (the run also had uncommitted changes, which can't be checked).` };
   }
   return changed.length
-    ? { state: 'changed', changed, method: 'git', reason: `${changed.length} RTL file${changed.length === 1 ? ' has' : 's have'} changed since commit ${short}, which the run was taken from.` }
+    ? { state: 'changed', changed, method: 'git', reason: `${changed.length} RTL file${changed.length === 1 ? ' has' : 's have'} changed since commit ${short}, which the report was made from.` }
     : { state: 'same', changed, method: 'git', reason: `RTL matches commit ${short}, which the run was taken from.` };
 }

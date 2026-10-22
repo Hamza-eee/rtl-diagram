@@ -45,7 +45,7 @@ export class RunsTree implements vscode.TreeDataProvider<RunNode> {
           r.simulator ? `${r.simulator.name} ${r.simulator.version}` : '',
           r.gitCommit ? `commit \`${r.gitCommit.slice(0, 10)}\`${r.dirty ? ' (dirty)' : ''}` : '',
           r.totals ? `${r.totals.passed}/${r.totals.tests} tests passed` : '',
-          '', active ? 'Active: findings are shown on the diagram.' : 'Click to show this run on the diagram.',
+          '', active ? 'Active: findings are shown on the diagram.' : 'Click to show this report on the diagram.',
         ].filter(x => x !== undefined).join('\n\n'));
         it.command = { command: 'rtlDiagram.activateRun', title: 'Activate run', arguments: [r.dir] };
         it.contextValue = 'run';

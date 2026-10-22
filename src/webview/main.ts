@@ -978,14 +978,14 @@ function runHeader() {
   );
 }
 
-/** Does the RTL still match what this run was taken from? */
+/** Does the RTL still match what this report was made from? */
 function freshnessNote(r: NonNullable<ViewMsg['run']>) {
   const f = r.freshness;
-  if (!f) return h('div', { class: 'muted small fresh' }, 'Checking whether the RTL matches this run…');
+  if (!f) return h('div', { class: 'muted small fresh' }, 'Checking whether the RTL matches this report…');
   if (f.state === 'same') return h('div', { class: 'muted small fresh ok' }, f.reason);
   if (f.state === 'unknown') return h('div', { class: 'muted small fresh' }, f.reason);
   return h('div', { class: 'fresh-warn' },
-    h('div', {}, h('strong', {}, 'RTL changed since this run. '), f.reason, ' Findings in these files may point at code the test never ran:'),
+    h('div', {}, h('strong', {}, 'RTL changed since this report. '), f.reason, ' Findings in these files may point at code the test never ran:'),
     h('ul', { class: 'plain' }, ...f.changed.slice(0, 6).map(c =>
       h('li', {}, h('button', { class: 'link mono', onclick: () => vscode.postMessage({ type: 'openFile', file: c.file, line: 0 }) }, c.rel)))),
     f.changed.length > 6 ? h('div', { class: 'muted small' }, `and ${f.changed.length - 6} more`) : null);
@@ -993,7 +993,7 @@ function freshnessNote(r: NonNullable<ViewMsg['run']>) {
 
 function findingsList() {
   if (!view?.run) return h('p', { class: 'muted pad' }, 'Without a verification report, the diagram is a plain design browser. Findings (failed checks) appear here when a report is open.');
-  if (!view.findings.length) return h('div', { class: 'pad clean' }, h('div', { class: 'clean-title' }, 'No findings in this run'), h('p', { class: 'muted' }, 'Every rule in the verification plan was checked and is clean.'));
+  if (!view.findings.length) return h('div', { class: 'pad clean' }, h('div', { class: 'clean-title' }, 'No findings in this report'), h('p', { class: 'muted' }, 'Every rule in the verification plan was checked and is clean.'));
   const order = (f: FindingRow) => (f.here ? 0 : f.resolved ? 1 : 2) * 10 + ({ error: 0, warning: 1, note: 2, none: 3 }[f.level]);
   const rows = [...view.findings].sort((a, b) => order(a) - order(b) || a.index - b.index);
   const ul = h('ul', { class: 'flist' });
