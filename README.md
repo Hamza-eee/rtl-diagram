@@ -32,7 +32,7 @@ You write RTL with a block diagram already in your head. RTL Diagram draws that 
 
 When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log. [How test failures get onto the diagram](#how-test-failures-get-onto-the-diagram) is explained below.
 
-- **Pass findings back and forth on the design.** Either side can leave a note, a question or an issue on a specific port, wire or block, anchored to the exact spot it refers to. Notes are small files saved in the repository, so the team gets them through git, without merge conflicts. → [Notes](docs/guide/notes.md)
+- **Pass findings back and forth on the design.** A *finding* is one problem a test reports, such as a failed check. Either side can leave a note, a question or an issue on a specific port, wire or block, anchored to the exact spot it refers to. Notes are small files saved in the repository, so the team gets them through git, without merge conflicts. → [Notes](docs/guide/notes.md)
 - **Report a bug with its reproduction.** A finding includes the command that regenerates the failure, so the designer can reproduce it without asking. → [Verification findings](docs/guide/findings.md)
 - **Know whether a report is still valid.** A report records the git commit it was made from. If the RTL has changed since, the report and the affected findings are marked as possibly out of date. → [Does the report still match the RTL?](docs/guide/findings.md#does-the-report-still-match-the-rtl)
 - **Use any testbench.** A report is plain JSON in a documented format, so cocotb, AVL, Verilator, SystemVerilog/UVM or your own scripts can all produce one. **(The script that creates reports from their results is planned.)** → [Verification report format](docs/verification-report-format.md)
@@ -78,9 +78,9 @@ The full list is in [Troubleshooting and limitations](docs/guide/troubleshooting
 2. **Install the extension.** Download the `.vsix` file from the [releases page](https://github.com/Hamza-eee/rtl-diagram/releases), then in VS Code run **Extensions: Install from VSIX…** (VS Code 1.90 or later).
 3. **Open a folder with your RTL**, click the **RTL Diagram** icon in the activity bar, and click a module in the **Hierarchy** list in the side bar (it shows each module and the blocks inside it).
 
-Nothing else is needed: no simulator, no licence server, no Python. git is optional; it names note authors and tells whether a verification report still matches the RTL. Press `?` at the top bar to check keyboard shortcuts.
+Nothing else is needed: no simulator, no licence server, no Python. git is optional; it names note authors and tells whether a verification report still matches the RTL. Press `?`, or click the `?` button in the toolbar at the top, to see the keyboard shortcuts.
 
-## Extension runs completely locally
+## Runs completely locally
 
 The extension never connects to the network and collects no telemetry. It reads your files, writes only note files, and runs only Verible and local git commands. [What it does, and how to check it yourself](docs/guide/privacy.md).
 
@@ -94,7 +94,7 @@ The extension never connects to the network and collects no telemetry. It reads 
 | [Verification findings](docs/guide/findings.md) | verification reports, findings on the diagram, reproducing a failure |
 | [Notes](docs/guide/notes.md) | notes, questions and issues shared through git |
 | [Settings and commands](docs/guide/settings.md) | every setting and command |
-| [Offline, no telemetry](docs/guide/privacy.md) | what it reads, writes and runs |
+| [Runs completely locally](docs/guide/privacy.md) | no network, no telemetry: what it reads, writes and runs |
 | [Troubleshooting and limitations](docs/guide/troubleshooting.md) | common problems, known limits |
 | [Verification report format](docs/verification-report-format.md) | the standard format a report script produces and the extension reads |
 

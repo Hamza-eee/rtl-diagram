@@ -1,4 +1,4 @@
-# Offline, no telemetry
+# Runs completely locally
 
 [← Back to the README](../../README.md)
 
