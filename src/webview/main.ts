@@ -112,6 +112,7 @@ function icon(name: string) {
     term: 'M2 3h12v10H2zM4.5 6.5 6.5 8l-2 1.5M8 10h3.5',
     file: 'M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3',
     spacing: 'M2 3v10M14 3v10M5 8h6M5 8l2-2M5 8l2 2M11 8l-2-2M11 8l-2 2',
+    sources: 'M3 2.5h7l3 3v8H3zM5.5 7h5M5.5 9.5h5M5.5 12h3',
     repo: 'M1.5 4V12.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H7.5L6 3.5H2.5a1 1 0 0 0-1 .5z',
   };
   const e = s('svg', { viewBox: '0 0 16 16', width: 16, height: 16, class: 'ico', 'aria-hidden': 'true' });
@@ -410,7 +411,8 @@ function drawJunctions(g: ViewGraph) {
 }
 
 function drawNode(n: VNode, mk: Markers) {
-  const g = s('g', { class: `node k-${n.kind}${n.missing ? ' missing' : ''}${n.drillable ? ' drillable' : ''}`, 'data-id': n.id, tabindex: n.kind === 'inst' ? 0 : -1, role: 'button', 'aria-label': n.kind === 'inst' ? `${n.label}, instance of ${n.sub}` : `${n.kind} port ${n.label}` });
+  const g = s('g', { class: `node k-${n.kind}${n.missing ? ' missing' : ''}${n.drillable ? ' drillable' : ''}`, 'data-id': n.id, tabindex: n.kind === 'inst' ? 0 : -1, role: 'button',
+    'aria-label': n.kind === 'inst' ? `${n.label}, instance of ${n.sub}` : n.kind === 'expr' ? `expression ${n.expr} into ${n.sub}` : `${n.kind} port ${n.label}` });
   const { x, y, w, h: hh } = n;
   if (n.kind === 'inst' || n.kind === 'logic') {
     if (n.generate) {
@@ -430,6 +432,17 @@ function drawNode(n: VNode, mk: Markers) {
     }
     if (n.drillable) g.append(s('path', { d: `M${x + w - 15} ${y + 11}l4 4 4-4`, class: 'drill-hint' }));
     for (const p of n.pins) drawPin(g, n, p);
+  } else if (n.kind === 'expr') {
+    // Expression in a port connection: the signals it uses go in, one wire comes out to the pin.
+    g.append(s('rect', { x, y, width: w, height: hh, rx: Math.min(9, hh / 2), class: 'body expr-body' }));
+    g.append(text(x + w / 2, y + hh / 2 + 4, n.label, 'expr-t', 'middle'));
+    for (const p of n.pins) {
+      const out = p.side === 'E' ? 1 : -1;
+      const pg = s('g', { class: 'pin expr-pin', 'data-pin': p.id });
+      pg.append(s('line', { x1: p.x, y1: p.y, x2: p.x + out * 4, y2: p.y, class: 'stub' }));
+      if (p.netLabels?.length) drawNetLabel(pg, p.x + out * 4, p.y, out, p.netLabels[0], p.netLabels.length - 1);
+      g.append(pg);
+    }
   } else {
     // Hierarchical port terminal (schematic flag shape).
     // Schematic convention: inputs sit on the left pointing into the module, outputs on the
@@ -462,7 +475,7 @@ function drawNode(n: VNode, mk: Markers) {
   g.addEventListener('click', ev => {
     ev.stopPropagation();
     const pinEl = (ev.target as Element).closest('[data-pin]');
-    if (pinEl) select({ kind: 'pin', id: pinEl.getAttribute('data-pin')! });
+    if (pinEl && n.kind !== 'expr') select({ kind: 'pin', id: pinEl.getAttribute('data-pin')! });
     else select({ kind: 'node', id: n.id });
   });
   g.addEventListener('dblclick', ev => {
@@ -476,7 +489,7 @@ function drawNode(n: VNode, mk: Markers) {
   });
   g.addEventListener('pointermove', ev => {
     const pinEl = (ev.target as Element).closest('[data-pin]');
-    if (pinEl) showTip(ev, pinTip(pinEl.getAttribute('data-pin')!));
+    if (pinEl && n.kind !== 'expr') showTip(ev, pinTip(pinEl.getAttribute('data-pin')!));
     else showTip(ev, nodeTip(n));
   });
   g.addEventListener('pointerleave', () => { hideTip(); hoverFocus(null); });
@@ -500,6 +513,18 @@ function drawPin(g: SVGGElement, n: VNode, p: VPin) {
   } else if (p.open) {
     const cx = p.x + out * 13;
     pg.append(s('path', { d: `M${cx - 3} ${p.y - 3}l6 6M${cx + 3} ${p.y - 3}l-6 6`, class: 'nc' }));
+  } else if (p.tie && p.tieLevel !== undefined) {
+    const x0 = p.x + out * 9, x1 = p.x + out * 17;
+    const sym = s('g', { class: `tie-sym ${p.tieLevel ? 'vdd' : 'gnd'}` });
+    const tt = s('title'); tt.textContent = `${p.expr} (${p.tieLevel ? 'all ones' : 'all zeros'})`; sym.append(tt);
+    if (p.tieLevel === 0) {
+      // Ground: a lead down to three shrinking bars.
+      sym.append(s('path', { d: `M${x0} ${p.y}H${x1}V${p.y + 6}M${x1 - 6} ${p.y + 6}h12M${x1 - 4} ${p.y + 9}h8M${x1 - 2} ${p.y + 12}h4` }));
+    } else {
+      // Supply: a lead up to a bar.
+      sym.append(s('path', { d: `M${x0} ${p.y}H${x1}V${p.y - 8}M${x1 - 6} ${p.y - 8}h12` }));
+    }
+    pg.append(sym);
   } else if (p.tie && p.expr) {
     pg.append(text(p.x + out * 13, p.y - 4, p.expr, 'tie-label', p.side === 'E' ? 'start' : 'end'));
   }
@@ -671,6 +696,12 @@ function pinTip(id: string) {
     h('div', { class: 'tip-hint' }, 'Click to trace the net'));
 }
 function nodeTip(n: VNode) {
+  if (n.kind === 'expr') {
+    return h('div', {},
+      h('div', { class: 'tip-title mono' }, n.expr ?? n.label),
+      kv(n.pins[0]?.side === 'W' && n.pins[0]?.id.endsWith('/=') ? 'driven by' : 'drives', h('span', { class: 'mono' }, n.sub ?? '')),
+      h('div', { class: 'tip-hint' }, 'Logic written in the port connection. Double-click to open the line.'));
+  }
   if (n.kind !== 'inst' && n.kind !== 'logic') return pinTip(n.pins[0]?.id);
   return h('div', {},
     h('div', { class: 'tip-title' }, n.label, h('span', { class: 'mono muted' }, n.sub ? `  ${n.sub}` : '')),
@@ -749,7 +780,8 @@ function renderStatus() {
     h('button', { class: 'st-link', title: 'Open module definition', onclick: () => vscode.postMessage({ type: 'openFile', file: g.file, line: 0 }) }, icon('file'), g.file.split('/').slice(-2).join('/')),
     g.pkg ? h('span', { class: 'st' }, `package ${g.pkg}`) : null,
     h('span', { class: 'st' }, `${g.stats.instances} instance${g.stats.instances === 1 ? '' : 's'} · ${g.stats.ports} ports · ${g.stats.nets} nets`),
-    h('span', { class: 'st muted' }, view.sourceMode),
+    h('button', { class: 'st-link st-sources', title: 'Where the RTL comes from: Bender, filelists (.f) or a file pattern. Click to change it for this project.',
+      onclick: () => vscode.postMessage({ type: 'configureSources' }) }, icon('sources'), `Sources: ${view.sourceMode}`, h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾')),
     h('span', { class: 'st-spacer' }),
     h('span', { class: 'st muted keys' }, 'Double-click a block to open it · double-click empty space or Backspace to go up · F fits'),
   ));
@@ -762,7 +794,7 @@ function findCandidates(q: string) {
   const out: { label: string; sub: string; act: () => void }[] = [];
   for (const n of view.graph.nodes) {
     if (n.label.toLowerCase().includes(ql) || (n.sub ?? '').toLowerCase().includes(ql)) {
-      out.push({ label: n.label, sub: n.kind === 'inst' ? n.sub ?? '' : `${n.kind} port`, act: () => { select({ kind: 'node', id: n.id }); centerOn(n.x + n.w / 2, n.y + n.h / 2); } });
+      out.push({ label: n.label, sub: n.kind === 'inst' ? n.sub ?? '' : n.kind === 'expr' ? `expression into ${n.sub}` : `${n.kind} port`, act: () => { select({ kind: 'node', id: n.id }); centerOn(n.x + n.w / 2, n.y + n.h / 2); } });
     }
     if (n.kind === 'inst') for (const p of n.pins) if (p.name.toLowerCase().includes(ql)) {
       out.push({ label: `${n.label}.${p.name}`, sub: p.dir, act: () => { select({ kind: 'pin', id: p.id }); centerOn(p.x, p.y); } });
@@ -939,10 +971,21 @@ function selectionCard() {
       h('p', { class: 'muted' }, 'Select a block, port or wire to see its details. Double-click a block to open it; double-click empty space to go up a level.'),
       h('div', { class: 'legend' },
         legendRow('wire t1', '1 bit'), legendRow('wire t2', '2–8 bits'), legendRow('wire t3', 'more than 8 bits'),
-        legendRow('nc', 'port left open'), legendRow('gen', 'inside a generate block')));
+        legendRow('nc', 'port left open'), legendRow('gnd', 'tied to 0'), legendRow('vdd', 'tied to 1'),
+        legendRow('expr', 'expression in a port connection'), legendRow('gen', 'inside a generate block')));
   }
   if (selection.kind === 'node') {
     const n = nodeById.get(selection.id)!;
+    if (n.kind === 'expr') {
+      const sigs = n.pins.filter(p => !p.id.endsWith('/='));
+      return h('div', { class: 'pad' },
+        h('h2', { class: 'card-title' }, 'Expression'),
+        h('pre', { class: 'mono expr-full' }, n.expr ?? n.label),
+        kv(n.pins.find(p => p.id.endsWith('/='))?.side === 'W' ? 'driven by' : 'drives', h('span', { class: 'mono' }, n.sub ?? '')),
+        kv('uses', h('span', { class: 'mono' }, sigs.map(p => p.name).join(', '))),
+        h('p', { class: 'muted small' }, 'Logic written directly in an instance\'s port connection. It is drawn as one box so the pin shows a single driver; open the line to read it.'),
+        h('div', { class: 'actions' }, n.loc ? btn('Go to code', () => vscode.postMessage({ type: 'open', loc: n.loc }), 'open', 'act primary') : null));
+    }
     if (n.kind !== 'inst' && n.kind !== 'logic') return pinCard(n.pins[0].id);
     const conns = n.pins.filter(p => !p.open).length;
     return h('div', { class: 'pad' },
@@ -967,14 +1010,18 @@ function selectionCard() {
     h('p', { class: 'muted' }, view.graph.labels?.[net] ? 'Net in this module, drawn as labels (see the rtlDiagram.netLabels settings). Connects:' : 'Net in this module, connecting:'),
     h('ul', { class: 'plain' }, ...[...ends].map(pid => {
       const pp = pinById.get(pid)!;
-      const label = pp.node.kind === 'inst' ? `${pp.node.label}.${pp.pin.name}` : pp.node.kind === 'logic' ? `logic (${pp.pin.dir === 'output' ? 'drives' : 'reads'})` : `port ${pp.pin.name}`;
-      return h('li', {}, h('button', { class: 'link mono', onclick: () => select({ kind: 'pin', id: pid }) }, label), h('span', { class: 'muted' }, ` ${pp.pin.dir}`));
+      const label = pp.node.kind === 'inst' ? `${pp.node.label}.${pp.pin.name}` : pp.node.kind === 'logic' ? `logic (${pp.pin.dir === 'output' ? 'drives' : 'reads'})` : pp.node.kind === 'expr' ? `expression ${pp.node.label}` : `port ${pp.pin.name}`;
+      const target = pp.node.kind === 'expr' ? { kind: 'node' as const, id: pp.node.id } : { kind: 'pin' as const, id: pid };
+      return h('li', {}, h('button', { class: 'link mono', onclick: () => select(target) }, label), h('span', { class: 'muted' }, ` ${pp.pin.dir}`));
     })));
 }
 function legendRow(kind: string, label: string) {
   const sw = s('svg', { width: 36, height: 14, class: 'lg' });
   if (kind.startsWith('wire')) sw.append(s('line', { x1: 2, y1: 7, x2: 34, y2: 7, class: `lg-${kind.replace(' ', '-')}` }));
   else if (kind === 'nc') sw.append(s('line', { x1: 2, y1: 7, x2: 18, y2: 7, class: 'lg-wire-t1' }), s('path', { d: 'M20 4l6 6M26 4l-6 6', class: 'lg-nc' }));
+  else if (kind === 'gnd') sw.append(s('path', { d: 'M30 4H18V8M12 8h12M14 10.5h8M16 13h4', class: 'lg-tie' }));
+  else if (kind === 'vdd') sw.append(s('path', { d: 'M30 10H18V3M12 3h12', class: 'lg-tie' }));
+  else if (kind === 'expr') sw.append(s('rect', { x: 3, y: 2, width: 30, height: 10, rx: 5, class: 'lg-expr' }));
   else sw.append(s('rect', { x: 8, y: 2, width: 22, height: 10, class: 'lg-gen' }), s('rect', { x: 4, y: 4, width: 22, height: 10, class: 'lg-body' }));
   return h('div', { class: 'lg-row' }, sw, h('span', {}, label));
 }
@@ -1191,7 +1238,8 @@ function anchorAt(target: Element): { anchor: NoteAnchor; label: string; scope: 
       if (node.missing || !node.sub) return null;
       return { anchor: { module: node.sub, target: { type: 'port', name: pin.name } }, label: `${node.sub}.${pin.name} (${node.label})`, scope: { top: view.top, instPath: [...cur, node.key!] } };
     }
-    if (node.kind === 'logic') return { anchor: { module: mod, target: { type: 'net', name: pin.name } }, label: `net ${pin.name} in ${mod}`, scope: here };
+    if (node.kind === 'logic' || (node.kind === 'expr' && !pin.id.endsWith('/='))) return { anchor: { module: mod, target: { type: 'net', name: pin.name } }, label: `net ${pin.name} in ${mod}`, scope: here };
+    if (node.kind === 'expr') return { anchor: { module: mod, target: { type: 'module' } }, label: mod, scope: here };
     return { anchor: { module: mod, target: { type: 'port', name: pin.name } }, label: `${mod}.${pin.name}`, scope: here };
   }
   if (netEl) {
@@ -1356,7 +1404,7 @@ function toggleProjectMenu(anchor: HTMLElement) {
   rows.push(item('Browse for a folder…', 'any folder on this machine', () => vscode.postMessage({ type: 'browseProject' })));
   if (p && !p.needsChoice) {
     rows.push(h('div', { class: 'pm-sep' }));
-    rows.push(item('Configure sources…', p.sources || 'where the RTL comes from', () => vscode.postMessage({ type: 'configureSources' })));
+    rows.push(item('Configure sources…', `Bender, filelists or a file pattern · now ${p.sources || 'none'}`, () => vscode.postMessage({ type: 'configureSources' })));
   }
   projMenu.replaceChildren(...rows.filter((r): r is Node => !!r));
   projMenu.hidden = false;

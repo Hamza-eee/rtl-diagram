@@ -13,6 +13,9 @@ All notable changes to this extension are listed here.
 - The project menu lists the projects in the open folder and any folder opened with **Browse for a folder…** (which may be outside the workspace; it is watched for changes too). The "whole workspace" option is gone.
 - The diagram says when the window still runs a previous version after an install, and needs a reload.
 - The Spacing and Live buttons show their new state as soon as they are clicked.
+- An expression in a port connection (`.push(a & ~b)`) is drawn as one box feeding the pin, instead of one wire per signal into the same pin.
+- Pins tied to 0 show a ground symbol and pins tied to all ones a supply bar; other constants keep their value.
+- The diagram's bottom bar shows **Sources: …** as a button that opens Configure sources; the status-bar list has it too.
 - Layout: fewer wire crossings, a spacing setting (Compact / Normal / Roomy), and hovering a block fades unrelated wires.
 - Clear setup requirements and an actionable message when Verible is missing.
 

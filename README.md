@@ -55,7 +55,8 @@ If you opened a folder that holds several projects (for example a parent folder 
 | Add a note | Right-click a port, pin, wire, block or empty space |
 | See one block's connections | Hover it: wires that don't touch it fade out |
 | Change spacing | The toolbar's spacing button cycles Compact, Normal and Roomy. Roomy separates parallel wires best; Compact fits more on screen |
-| Switch project or sources | Click the project name at the start of the breadcrumb |
+| Switch project | Click the project name at the start of the breadcrumb |
+| Change where the RTL comes from (Bender, filelists, a pattern) | Click **Sources: …** at the bottom left of the diagram |
 
 ### Reading the diagram
 
@@ -67,7 +68,11 @@ If you opened a folder that holds several projects (for example a parent folder 
 | Dashed rounded block | the module's own `assign` / `always` code |
 | Stacked outline and a header above a block | the instance is inside a `generate` construct |
 | Wire thickness, slash with a number | 1 bit, 2–8 bits, more than 8 bits; the bus width |
-| `×` at a pin, a value at a pin | the pin is left open, or tied to a constant |
+| `×` at a pin | the pin is left open |
+| Ground symbol at a pin (three shrinking bars) | the pin is tied to 0 (`1'b0`, `'0`, `{N{1'b0}}`, …) |
+| Bar on a short lead at a pin (T) | the pin is tied to all ones (`1'b1`, `'1`, `8'hFF`, …) |
+| A value at a pin | the pin is tied to another constant |
+| Dashed box with an expression, e.g. `evt_s & ~evt_q` | logic written directly in a port connection: the signals it uses go in, a single wire goes to the pin. Plain names and part-selects (`count[0][7:0]`) stay direct wires |
 | Small rounded tag at a pin | a clock, reset or high fan-out net drawn as a label instead of a wire |
 | Coloured probe with a rule ID | where a verification finding was observed; a dotted ring marks the statements that directly drive that signal (candidates, not a diagnosis) |
 | Count badge on a block | findings on that instance or somewhere inside it |
@@ -124,7 +129,7 @@ The extension reads from the project folder you chose (or the open folder, if it
 
 Testbench folders are excluded by default through `rtlDiagram.exclude`. **RTL Diagram: Show Source Files** lists the files in use.
 
-To use something else for one project, open the project menu (the project name at the start of the breadcrumb) and choose **Configure sources…**: automatic, Bender only, one or more filelists (`.f` files found in the project are listed), or a file pattern. The choice is saved by the extension for that project on your machine; nothing is written to the repository. **Use the settings** goes back to the defaults below.
+To use something else for one project, click **Sources: …** at the bottom left of the diagram (it shows what is used now, e.g. *Sources: Bender · 3 packages · 8 files*), or choose **Configure sources…** in the project menu or the status-bar list: automatic, Bender only, one or more filelists (`.f` files found in the project are listed), or a file pattern. The choice is saved by the extension for that project on your machine; nothing is written to the repository. **Use the settings** goes back to the defaults below.
 
 ## Settings
 

@@ -21,6 +21,7 @@ export interface VPin {
   expr?: string;                  // actual expression for instance pins
   open?: boolean;                 // left unconnected `.p()`
   tie?: boolean;                  // connected to a constant only
+  tieLevel?: 0 | 1;               // the constant is all zeros (ground) or all ones (supply)
   netLabels?: string[];           // nets drawn as labels at this pin instead of wires
   loc?: SrcLoc;
 }
@@ -54,7 +55,7 @@ export const DEFAULT_VIEW_OPTIONS: ViewOptions = {
 
 export interface VNode {
   id: string;
-  kind: 'in' | 'out' | 'inout' | 'inst' | 'logic';
+  kind: 'in' | 'out' | 'inout' | 'inst' | 'logic' | 'expr';
   key?: string;                   // instance key (unique in the module) for 'inst' nodes
   label: string;
   sub?: string;                   // module name for instances
@@ -66,6 +67,7 @@ export interface VNode {
   params?: { name: string; expr: string }[];
   loc?: SrcLoc;
   defLoc?: SrcLoc;                // module definition (for instances)
+  expr?: string;                  // full expression text (for 'expr' nodes; label may be shortened)
 }
 
 export interface VEdge {
@@ -101,6 +103,39 @@ function pinDir(d: Port['dir']): PinDir {
 
 interface Endpoint { pin: string; role: 'src' | 'sink' | 'bi'; width?: number }
 
+// A plain reference: one name with optional selects, e.g. `count[0][7:0]`. Anything else
+// (operators, concatenation, nested selects) is an expression with logic in it.
+const PLAIN_REF = /^\s*[A-Za-z_][\w$]*(\s*\[[^\[\]]*\])*\s*$/;
+
+/** True if a connection needs an expression box: it combines signals or applies logic to one. */
+export function isCompound(expr: string, signals: string[]): boolean {
+  return signals.length > 1 || (signals.length === 1 && !PLAIN_REF.test(expr));
+}
+
+/**
+ * 0 if a constant is all zeros, 1 if it is all ones for its own size (or for a 1-bit pin),
+ * otherwise undefined. Only literal forms are recognised; parameters are never evaluated.
+ */
+export function tieLevel(expr: string, width?: number): 0 | 1 | undefined {
+  const e = expr.replace(/[\s_]/g, '');
+  const rep = /^\{[^{}]+\{1'[bB]([01])\}\}$/.exec(e);              // {W{1'b0}} / {W{1'b1}}
+  if (rep) return rep[1] === '1' ? 1 : 0;
+  if (/^'[sS]?[bBoOdDhH]?0$/.test(e) || /^\d*'[sS]?[bBoOdDhH]0+$/.test(e) || /^0+$/.test(e)) return 0;
+  if (e === "'1") return 1;
+  const m = /^(\d+)'[sS]?([bBhHdD])([0-9a-fA-F]+)$/.exec(e);
+  if (m) {
+    const n = Number(m[1]);
+    const base = m[2].toLowerCase();
+    const bits = base === 'b' ? m[3] : base === 'h' ? [...m[3]].map(c => parseInt(c, 16).toString(2).padStart(4, '0')).join('') : BigInt(m[3]).toString(2);
+    if (/^[01]+$/.test(bits) && n > 0 && bits.length >= n && /^1+$/.test(bits.slice(-n))) return 1;
+    return undefined;
+  }
+  if (width === 1 && /^0*1$/.test(e)) return 1;
+  return undefined;
+}
+
+const shorten = (t: string, n = 34) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+
 export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAULT_VIEW_OPTIONS): Promise<ViewGraph> {
   const nodes: VNode[] = [];
   const nets = new Map<string, Endpoint[]>();
@@ -124,6 +159,9 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
     });
     addEp(p.name, { pin: `${id}/p`, role: p.dir === 'input' ? 'src' : p.dir === 'output' ? 'sink' : 'bi', width: p.width });
   }
+
+  // Links between an expression box and the pin it feeds: not nets of the module, so kept apart.
+  const links: { net: string; from: string; to: string; width?: number }[] = [];
 
   // Child instances.
   m.instances.forEach((inst, i) => {
@@ -150,8 +188,29 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
       pin.expr = c.expr;
       pin.open = c.expr === '';
       pin.tie = c.expr !== '' && c.signals.length === 0;
-      for (const s of c.signals) {
-        addEp(s, { pin: pin.id, role: c.dir === 'output' ? 'src' : c.dir === 'input' ? 'sink' : 'bi', width: pin.width });
+      if (pin.tie) pin.tieLevel = tieLevel(c.expr, pin.width);
+      const sigs = [...new Set(c.signals.filter(x => isNet(m, x)))];
+      if (sigs.length && isCompound(c.expr, c.signals)) {
+        // One box for the expression: each signal goes in (or out, for an output connected to a
+        // concatenation), and a single link joins the box to the pin. Never several wires on one pin.
+        const out = c.dir === 'output';
+        const eid = `expr:${inst.key}/${c.port}`;
+        const text = c.expr.replace(/\s+/g, ' ').trim();
+        const epins: VPin[] = sigs.map(x => ({ id: `${eid}/${x}`, name: x, dir: out ? 'output' : 'input', side: out ? 'E' : 'W', x: 0, y: 0, range: '' }));
+        const join: VPin = { id: `${eid}/=`, name: `${inst.name}.${c.port}`, dir: out ? 'input' : 'output', side: out ? 'W' : 'E', x: 0, y: 0, range: pin.range, width: pin.width };
+        for (const ep of epins) addEp(ep.name, { pin: ep.id, role: out ? 'src' : 'sink' });
+        links.push(out ? { net: join.name, from: pin.id, to: join.id, width: pin.width } : { net: join.name, from: join.id, to: pin.id, width: pin.width });
+        const label = shorten(text);
+        nodes.push({
+          id: eid, kind: 'expr', label, expr: text, sub: join.name, x: 0, y: 0,
+          w: Math.ceil(Math.max(48, textW(label) + 2 * 12)), h: Math.max(epins.length, 1) * PITCH + 6,
+          pins: out ? [join, ...epins] : [...epins, join], drillable: false,
+          loc: inst.connections.find(x => x.port === c.port)?.loc ?? inst.loc,
+        });
+      } else {
+        for (const s of c.signals) {
+          addEp(s, { pin: pin.id, role: c.dir === 'output' ? 'src' : c.dir === 'input' ? 'sink' : 'bi', width: pin.width });
+        }
       }
     }
     // Ports with no connection entry at all (not listed, no .*) are open.
@@ -203,6 +262,12 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
     }
   }
 
+  for (const l of links) {
+    const id = `e${edges.length}`;
+    edges.push({ id, net: l.net, width: l.width, from: l.from, to: l.to, points: [] });
+    (netEdges[l.net] ??= []).push(id);
+  }
+
   // Size nodes from their pins.
   for (const n of nodes) {
     if (n.kind !== 'inst' && n.kind !== 'logic') continue;
@@ -216,7 +281,7 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
   const g = await layout(nodes, edges, opts.elk ?? {});
   return {
     module: m.name, file: m.file, pkg: m.pkg, w: g.w, h: g.h, nodes, edges, nets: netEdges, labels,
-    stats: { instances: m.instances.length, ports: m.ports.length, nets: Object.keys(netEdges).length + Object.keys(labels).length },
+    stats: { instances: m.instances.length, ports: m.ports.length, nets: Object.keys(netEdges).filter(n => isNet(m, n)).length + Object.keys(labels).length },
   };
 }
 
@@ -229,12 +294,13 @@ async function layout(nodes: VNode[], edges: VEdge[], extra: Record<string, stri
       pinIndex.set(p.id, { node: n, pin: p });
       const list = p.side === 'W' ? W : E;
       const i = list.indexOf(p);
-      const terminal = n.kind !== 'inst' && n.kind !== 'logic';
+      const terminal = n.kind !== 'inst' && n.kind !== 'logic' && n.kind !== 'expr';
       return {
         id: p.id, width: 1, height: 1,
-        // Fixed positions so pins sit on the drawn pitch; boundary terminals have one pin centred.
+        // Fixed positions so pins sit on the drawn pitch; boundary terminals have one pin centred,
+        // expression boxes spread theirs evenly down each side.
         x: p.side === 'W' ? 0 : n.w - 1,
-        y: terminal ? n.h / 2 : HEAD + i * PITCH + PITCH / 2,
+        y: n.kind === 'expr' ? (i + 0.5) * n.h / list.length : terminal ? n.h / 2 : HEAD + i * PITCH + PITCH / 2,
         layoutOptions: { 'elk.port.side': p.side === 'W' ? 'WEST' : 'EAST' },
       };
     });

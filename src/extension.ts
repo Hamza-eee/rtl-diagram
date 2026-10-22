@@ -35,7 +35,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
     else {
       status.text = store.needsProject() ? '$(repo) RTL: choose a project' : `$(circuit-board) RTL: ${store.projectLabel()} · ${d?.sourceMode ?? 'no sources'}`;
     }
-    status.tooltip = store.lastError ?? `Project: ${store.needsProject() ? 'not chosen yet' : store.project() ?? 'the open folder'}\nClick to open another project.`;
+    status.tooltip = store.lastError ?? `Project: ${store.needsProject() ? 'not chosen yet' : store.project() ?? 'the open folder'}\nClick to open another project or configure sources (Bender, filelists).`;
     status.show();
   };
 
@@ -108,7 +108,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
     vscode.commands.registerCommand('rtlDiagram.chooseProject', async () => {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Looking for RTL projects…' }, () => store.detectProjects());
       const current = store.needsProject() ? undefined : store.project();
-      type Item = vscode.QuickPickItem & { folder?: string; browse?: boolean };
+      type Item = vscode.QuickPickItem & { folder?: string; browse?: boolean; sources?: boolean };
       const row = (f: string): Item => ({
         label: `${f === current ? '$(check)' : '$(folder)'} ${path.basename(f)}`, description: displayPath(f), folder: f,
         detail: f === current ? 'Open now' : fs.existsSync(path.join(f, 'Bender.yml')) ? 'Bender package' : undefined,
@@ -119,6 +119,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
         ...(recent.length ? [{ label: 'Other folders', kind: vscode.QuickPickItemKind.Separator }, ...recent.map(row)] : []),
         { label: '', kind: vscode.QuickPickItemKind.Separator },
         { label: '$(folder-opened) Browse for a folder…', description: 'any folder on this machine', browse: true },
+        ...(current || !store.needsProject() ? [{ label: '$(settings-gear) Configure sources…', description: `Bender, filelists or a file pattern · now ${store.design?.sourceMode ?? 'none'}`, sources: true }] : []),
       ];
       const pick = await vscode.window.showQuickPick(items, {
         title: 'RTL Diagram: open a project',
@@ -127,6 +128,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
       });
       if (!pick) return;
       if (pick.browse) return vscode.commands.executeCommand('rtlDiagram.browseProject');
+      if (pick.sources) return vscode.commands.executeCommand('rtlDiagram.configureSources');
       if (pick.folder) await openProject(pick.folder);
     }),
     vscode.commands.registerCommand('rtlDiagram.openProject', (folder: string) => openProject(folder)),
