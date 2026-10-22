@@ -38,6 +38,7 @@ interface ViewMsg {
     freshness: { state: 'same' | 'changed' | 'unknown'; reason: string; changed: { file: string; rel: string }[] } | null;
   } | null;
   live: LiveState;
+  spacing: 'compact' | 'normal' | 'roomy';
   project: ProjectState;
   issues: IssueRow[];
   issueMarks: IssueMarks;
@@ -112,6 +113,7 @@ function icon(name: string) {
     copy: 'M5 5h8v9H5zM3 11V2h8',
     term: 'M2 3h12v10H2zM4.5 6.5 6.5 8l-2 1.5M8 10h3.5',
     file: 'M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3',
+    spacing: 'M2 3v10M14 3v10M5 8h6M5 8l2-2M5 8l2 2M11 8l-2-2M11 8l-2 2',
     repo: 'M1.5 4V12.5a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1H7.5L6 3.5H2.5a1 1 0 0 0-1 .5z',
   };
   const e = s('svg', { viewBox: '0 0 16 16', width: 16, height: 16, class: 'ico', 'aria-hidden': 'true' });
@@ -128,6 +130,12 @@ const findResults = h('ul', { class: 'find-results', role: 'listbox', hidden: tr
 const zoomLabel = h('button', { class: 'zoom-label', title: 'Reset to 100% (0)' }, '100%');
 const themeBtn = h('button', { class: 'tb-btn', title: 'Theme: follow VS Code' }, icon('theme'), h('span', { class: 'tb-btn-label' }, 'Auto'));
 const drawerBtn = h('button', { class: 'tb-btn', title: 'Toggle side panel' }, icon('drawer'));
+const spacingBtn = h('button', { class: 'tb-btn', title: 'Spacing' }, icon('spacing'), h('span', { class: 'tb-btn-label' }, 'Normal'));
+spacingBtn.addEventListener('click', () => {
+  const cur = view?.spacing ?? 'normal';
+  const next = cur === 'compact' ? 'normal' : cur === 'normal' ? 'roomy' : 'compact';
+  vscode.postMessage({ type: 'setSpacing', spacing: next });
+});
 const liveBtn = h('button', { class: 'tb-btn live-btn', 'aria-pressed': 'true' }, h('span', { class: 'live-dot', 'aria-hidden': 'true' }), h('span', { class: 'tb-btn-label' }, 'Live'));
 liveBtn.addEventListener('click', () => vscode.postMessage({ type: 'setLive', on: !live.on }));
 const upBtn = h('button', { class: 'tb-btn', title: 'Up one level (Backspace)' }, icon('up'));
@@ -141,7 +149,7 @@ toolbar.append(
     h('button', { class: 'tb-btn', title: 'Zoom in (+)', onclick: () => zoomBy(1.25) }, icon('plus')),
     h('button', { class: 'tb-btn', title: 'Fit to window (F)', onclick: () => fit(true) }, icon('fit')),
   ),
-  liveBtn, themeBtn, drawerBtn,
+  spacingBtn, liveBtn, themeBtn, drawerBtn,
 );
 const stage = h('main', { class: 'stage', tabindex: '0', 'aria-label': 'Block diagram' });
 const svg = s('svg', { class: 'canvas', role: 'img' });
@@ -318,6 +326,9 @@ function render(msg: ViewMsg) {
   drawNotes(msg);
   svg.setAttribute('aria-label', `Block diagram of ${g.module}: ${g.stats.instances} instances, ${g.stats.ports} ports`);
   live = msg.live ?? live;
+  const sp = msg.spacing ?? 'normal';
+  spacingBtn.querySelector('.tb-btn-label')!.textContent = sp[0].toUpperCase() + sp.slice(1);
+  spacingBtn.title = `Spacing: ${sp}. Click for ${sp === 'compact' ? 'normal' : sp === 'normal' ? 'roomy' : 'compact'}.`;
   project = msg.project ?? project;
   if (tab === 'issues' && !msg.issues?.length) tab = 'findings';
   renderLive();
@@ -454,7 +465,8 @@ function drawNode(n: VNode, mk: Markers) {
     if (pinEl) showTip(ev, pinTip(pinEl.getAttribute('data-pin')!));
     else showTip(ev, nodeTip(n));
   });
-  g.addEventListener('pointerleave', hideTip);
+  g.addEventListener('pointerleave', () => { hideTip(); hoverFocus(null); });
+  g.addEventListener('pointerenter', () => hoverFocus(n));
   gNodes.append(g);
 }
 
@@ -541,8 +553,32 @@ function drill(n: VNode) {
   } else vscode.postMessage({ type: 'drill', inst: n.key });
 }
 
+// ---------------------------------------------------------------- hover focus
+
+let hoverTimer = 0;
+/** While a block is hovered (and nothing is selected), fade the wires that don't touch it. */
+function hoverFocus(n: VNode | null) {
+  clearTimeout(hoverTimer);
+  if (!n || selection) {
+    svg.classList.remove('hovering');
+    for (const el of svg.querySelectorAll('.hov')) el.classList.remove('hov');
+    return;
+  }
+  hoverTimer = window.setTimeout(() => {
+    for (const el of svg.querySelectorAll('.hov')) el.classList.remove('hov');
+    const nets = new Set<string>();
+    for (const p of n.pins) {
+      for (const id of pinEdges.get(p.id) ?? []) { edgeEls.get(id)?.classList.add('hov'); const e = view?.graph.edges.find(x => x.id === id); if (e) nets.add(e.net); }
+      for (const l of p.netLabels ?? []) nets.add(l);
+    }
+    for (const net of nets) svg.querySelectorAll(`.netlabel[data-net="${CSS.escape(net)}"], .junction[data-net="${CSS.escape(net)}"]`).forEach(x => x.classList.add('hov'));
+    svg.classList.add('hovering');
+  }, 120);
+}
+
 // ---------------------------------------------------------------- selection
 function select(sel: typeof selection) {
+  hoverFocus(null);
   selection = sel;
   svg.classList.toggle('has-sel', !!sel);
   for (const el of svg.querySelectorAll('.sel, .lit')) el.classList.remove('sel', 'lit');

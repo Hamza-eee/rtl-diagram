@@ -8,6 +8,10 @@ All notable changes to this extension are listed here.
 - Live toggle: pause redrawing on save; a banner lists changed files with Refresh.
 - Findings are worded as observations ("Observed at", "Direct drivers … not a diagnosis").
 - Note files are validated, and note writes are confined to the notes folder.
+- Folders with several projects ask which one to open instead of mixing them; the project name at the start of the breadcrumb switches project and configures sources per project.
+- Source issues (syntax errors, duplicate or missing modules, source problems) are marked on the affected blocks and listed as a session checklist.
+- Layout: fewer wire crossings, a spacing setting (Compact / Normal / Roomy), and hovering a block fades unrelated wires.
+- Clear setup requirements and an actionable message when Verible is missing.
 
 ## 0.1.0
 

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Store } from './store';
-import { buildView, DEFAULT_VIEW_OPTIONS } from './graph';
+import { buildView, DEFAULT_VIEW_OPTIONS, SPACING, Spacing } from './graph';
 import { moduleAtPath } from './elab';
 import { SrcLoc } from './model';
 import { primaryOf, repoPath } from './findings/run';
@@ -115,6 +115,7 @@ export class DiagramPanel implements vscode.Disposable {
     const graph = await buildView(d, m, {
       labelFanout: c.get('netLabels.minLoads', DEFAULT_VIEW_OPTIONS.labelFanout),
       labelPattern: c.get('netLabels.pattern', DEFAULT_VIEW_OPTIONS.labelPattern),
+      elk: SPACING[this.spacing()],
     });
     if (seq !== this.renderSeq) return;   // a newer render superseded this one
     const crumbs = [{ label: this.top, sub: '', path: [] as string[] }];
@@ -153,6 +154,7 @@ export class DiagramPanel implements vscode.Disposable {
         } : null,
       } : null,
       live: this.liveState(),
+      spacing: this.spacing(),
       project: this.projectState(),
       issues: this.issuesState(),
       issueMarks: issueMarksFor(d, this.store.issues, this.store.checkedIssues, m.name),
@@ -178,6 +180,11 @@ export class DiagramPanel implements vscode.Disposable {
       file: i.file, line: i.line, col: i.col, rel: i.file ? vscode.workspace.asRelativePath(i.file) : undefined,
       checked: this.store.checkedIssues.has(i.key),
     }));
+  }
+
+  private spacing(): Spacing {
+    const v = this.ctx.workspaceState.get<string>('spacing') ?? this.store.cfg().get<string>('layout.spacing', 'normal');
+    return v === 'compact' || v === 'roomy' ? v : 'normal';
   }
 
   private liveState() {
@@ -331,6 +338,12 @@ export class DiagramPanel implements vscode.Disposable {
       }
       case 'gotoNote':
         this.gotoNote(m.id);
+        return;
+      case 'setSpacing':
+        if (m.spacing === 'compact' || m.spacing === 'normal' || m.spacing === 'roomy') {
+          await this.ctx.workspaceState.update('spacing', m.spacing);
+          await this.render();
+        }
         return;
       case 'setLive':
         await this.store.setLive(!!m.on);

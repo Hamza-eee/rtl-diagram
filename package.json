@@ -266,6 +266,16 @@
           "default": 6,
           "markdownDescription": "Nets with at least this many loads in a view are drawn as named labels instead of wires. `0` disables."
         },
+        "rtlDiagram.layout.spacing": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "normal",
+            "roomy"
+          ],
+          "default": "normal",
+          "markdownDescription": "How much room the layout leaves between blocks and between parallel wires. `roomy` separates wires best but fits less on screen. The toolbar's spacing button changes it per workspace."
+        },
         "rtlDiagram.notesFolder": {
           "type": "string",
           "default": ".rtl-notes",

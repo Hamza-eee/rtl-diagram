@@ -38,7 +38,7 @@ Nothing else is needed: no simulator, no license, no Python, no network access. 
 3. Open a folder with your RTL and click the **RTL Diagram** icon in the activity bar.
 4. Click a module in **Hierarchy** to open its diagram.
 
-If you opened a parent folder holding several projects, the extension offers to pick one. You can change it any time with **RTL Diagram: Choose Project Folder…** or the status bar.
+If you opened a folder that holds several projects (for example a parent folder of many repositories), nothing is mixed: the diagram and the Hierarchy view ask which project to open. A folder with a single project opens directly. Switch project any time from the first segment of the diagram's breadcrumb (the project name), the Hierarchy view title bar, or the status bar.
 
 ## Using the diagram
 
@@ -53,6 +53,9 @@ If you opened a parent folder holding several projects, the extension offers to 
 | Switch theme | The toolbar button cycles Auto, Light and Dark |
 | Pause redrawing | The toolbar's **Live** button. While paused, the diagram stays as drawn and a banner lists the RTL files saved since, with *Refresh* |
 | Add a note | Right-click a port, pin, wire, block or empty space |
+| See one block's connections | Hover it: wires that don't touch it fade out |
+| Change spacing | The toolbar's spacing button cycles Compact, Normal and Roomy. Roomy separates parallel wires best; Compact fits more on screen |
+| Switch project or sources | Click the project name at the start of the breadcrumb |
 
 ### Reading the diagram
 
@@ -69,6 +72,7 @@ If you opened a parent folder holding several projects, the extension offers to 
 | Coloured probe with a rule ID | where a verification finding was observed; a dotted ring marks the statements that directly drive that signal (candidates, not a diagnosis) |
 | Count badge on a block | findings on that instance or somewhere inside it |
 | Speech bubble | one or more notes |
+| Hatched block with a black diamond | a source issue (such as a syntax error) affects this block, so it may be drawn incomplete; a hollow diamond means the issue is in a block further down |
 
 A net is drawn only if the module declares it as a port, net or variable. Names are used for display choices only (which nets become labels, pin colours), never for connectivity.
 
@@ -97,6 +101,17 @@ Right-click a port, pin, wire, block or empty space and choose **Add note**. Pic
 - The author is taken from your git `user.name`.
 - If the port or instance a note points at disappears from the RTL, the note is listed as **Detached** with the reason. It is never dropped.
 
+## Source issues
+
+Problems reading the RTL are shown on the diagram, not just in a list:
+
+- **Syntax errors**: the block whose file has the error is hatched. If Verible couldn't read the file at all, its modules are missing, and the "not found" entry says which broken file declares them.
+- **Modules declared more than once**: the first one in source order is used.
+- **Modules not found**: an instance of a module that isn't in the files read (a vendor primitive, a missing dependency, or a file outside the sources).
+- **Source problems**: unreadable Bender manifests, globs that matched nothing, missing filelist entries.
+
+The **Issues** tab lists them as a checklist with links to each line. Tick issues off as you go: ticks last until VS Code closes, and an issue that gets fixed disappears by itself. A syntax error is reported where Verible noticed it; the actual mistake is often just before, such as a missing `;` on the line above.
+
 ## Where the RTL comes from
 
 The extension reads from the project folder you chose, or from the whole workspace if you didn't choose one. In `auto` mode the first of these that exists is used:
@@ -105,7 +120,9 @@ The extension reads from the project folder you chose, or from the whole workspa
 2. **Filelists** listed in `rtlDiagram.filelists`, with support for `-f` nesting, `+incdir+`, `-v` and `-y`.
 3. **Include glob**, `rtlDiagram.include` (default `**/*.{sv,v}`).
 
-Testbench folders are excluded by default through `rtlDiagram.exclude`. Click the status bar to change the project; **RTL Diagram: Show Source Files** lists the files in use.
+Testbench folders are excluded by default through `rtlDiagram.exclude`. **RTL Diagram: Show Source Files** lists the files in use.
+
+To use something else for one project, open the project menu (the project name at the start of the breadcrumb) and choose **Configure sources…**: automatic, Bender only, one or more filelists (`.f` files found in the project are listed), or a file pattern. The choice is saved by the extension for that project on your machine; nothing is written to the repository. **Use the settings** goes back to the defaults below.
 
 ## Settings
 
@@ -123,6 +140,7 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 | `rtlDiagram.runsGlob` | `**/reports/*/run.json` | Where verification runs are found. |
 | `rtlDiagram.netLabels.pattern` | clocks and resets | Nets whose name matches are drawn as labels. Empty disables. |
 | `rtlDiagram.netLabels.minLoads` | `6` | Nets with at least this many loads are drawn as labels. `0` disables. |
+| `rtlDiagram.layout.spacing` | `normal` | `compact`, `normal` or `roomy`; the toolbar button changes it per workspace. |
 | `rtlDiagram.notesFolder` | `.rtl-notes` | Where notes are stored, inside the project folder. |
 | `rtlDiagram.theme` | `auto` | `auto` follows VS Code; `light` or `dark` fixes the diagram theme. |
 | `rtlDiagram.colors.block`, `.wire`, `.error`, `.warning`, `.note` | theme | CSS colours for blocks, wires and finding levels. |
@@ -133,7 +151,8 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 | Command | |
 |---|---|
 | RTL Diagram: Open Diagram | Open the diagram panel. |
-| RTL Diagram: Choose Project Folder… | Pick the folder to read from. |
+| RTL Diagram: Open Project… | Pick the project folder to read from. |
+| RTL Diagram: Configure Sources… | Choose where this project's RTL comes from. |
 | RTL Diagram: Choose Top Module… | Pick which top module the diagram starts from. |
 | RTL Diagram: Open Run Folder… | Load a run directory from anywhere on disk. |
 | RTL Diagram: Clear Active Run | Hide findings. |
@@ -144,11 +163,11 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 ## Troubleshooting
 
 - **"Verible not found".** Install Verible or set `rtlDiagram.veriblePath` to the full path of `verible-verilog-syntax`.
-- **Modules from several projects are mixed.** Choose a project folder (status bar or *Choose Project Folder…*).
+- **The wrong project is open.** Click the project name at the start of the breadcrumb and pick another.
 - **A module or a testbench file is missing.** Check *Show Source Files*. Testbench folders are excluded on purpose; adjust `rtlDiagram.exclude`, or `rtlDiagram.benderTargets` for Bender target groups.
 - **A block is dashed with "not in sources".** The instantiated module isn't in the files read, often a vendor primitive or a missing Bender dependency. Run `bender checkout` for git dependencies.
 - **A finding says "Not found in the RTL".** The card shows why: the DUT module isn't parsed, an instance on its path doesn't exist, or the port name differs from the RTL.
-- **Source issues** (syntax errors, duplicate modules, unreadable manifests) are listed at the top of the Hierarchy view.
+- **A block looks incomplete or is hatched.** See the Issues tab: a syntax error or a missing module affects it.
 
 ## Limitations
 

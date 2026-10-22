@@ -461,3 +461,9 @@ ul.plain li { padding: 2px 0; }
 .issue-done-head { display: flex; justify-content: space-between; align-items: baseline; padding-right: 14px; }
 
 .minimap[hidden] { display: none; }
+
+/* ---------- hover focus: fade wires that don't touch the hovered block */
+.hovering .edge:not(.hov) { opacity: .16; transition: opacity .12s; }
+.hovering .junction:not(.hov), .hovering .netlabel:not(.hov) { opacity: .25; }
+.hovering .edge.hov .wire { stroke: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .hovering .edge:not(.hov) { transition: none; } }
