@@ -24,13 +24,13 @@ You write RTL with a block diagram already in your head. RTL Diagram draws that 
 - **Explore unfamiliar designs**, such as third-party IP or a colleague's block, without reading them line by line. Open any block to see what is inside, trace a signal through the design, and jump to its source line. → [Reading and navigating the diagram](docs/guide/diagram.md)
 - **Leave notes for yourself** on any port, wire or block as you work. → [Notes](docs/guide/notes.md)
 - **The diagram updates live with the RTL.** It is redrawn each time you save an RTL file. You can turn live updates off with the toolbar's Live button to save computing power on large designs. → [Toolbar](docs/guide/diagram.md#toolbar)
-- **Open your project files as they are.** Supported inputs are Bender packages, simulator file lists (`.f`) and plain folders of `.sv` / `.v` files. You choose per project, and nothing is written to your repository. → [Projects and sources](docs/guide/projects-and-sources.md)
+- **Open your project files as they are.** Supported inputs are Bender packages, simulator file lists (`.f`) and plain folders of `.sv` / `.v` files. You choose per project; the choice is kept by the extension and never written to your repository. → [Projects and sources](docs/guide/projects-and-sources.md)
 
 ![u_timer connected with .*: the clk and rst_n pins marked as unconnected, with the suggested fix in the Issues tab](docs/images/checks.png)
 
 ### Design and verification teams: report bugs in visual context
 
-When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log. [How reports get onto the diagram](#how-test-failures-get-onto-the-diagram) is explained below.
+When design and verification work together, the diagram is common ground. A verification engineer runs a regression, finds a bug and reports it on the design itself: the failed check appears on the port where it was observed, so the designer sees it in context instead of reading a text log. [How test failures get onto the diagram](#how-test-failures-get-onto-the-diagram) is explained below.
 
 - **Pass findings back and forth on the design.** Either side can leave a note, a question or an issue on a specific port, wire or block, anchored to the exact spot it refers to. Notes are small files saved in the repository, so the team gets them through git, without merge conflicts. → [Notes](docs/guide/notes.md)
 - **Report a bug with its reproduction.** A finding includes the command that regenerates the failure, so the designer can reproduce it without asking. → [Verification findings](docs/guide/findings.md)
@@ -45,7 +45,7 @@ If you already deploy an agentic harness for verification, it can report the bug
 - **Go from the symptom to the code that drives it.** Each finding links to the port's declaration and to the statements that drive the signal, as places to look first. They are candidates, not a diagnosis. → [Verification findings](docs/guide/findings.md)
 - **Reproduce the exact failure** with the command each finding carries, as described in [the previous section](#design-and-verification-teams-report-bugs-in-visual-context).
 
-**Status:** showing a report's findings on the diagram works today, and an agent can already write reports in this extension's format by following its [documentation](docs/verification-report-format.md). The script that creates the reports automatically for your verification agent is **(planned)**.
+**Status:** showing a report's findings on the diagram works today, and an agent can already write reports in this extension's format by following its [documentation](docs/verification-report-format.md). The script that creates the reports automatically, for an agent or for any testbench, is **(planned)**.
 
 ## How test failures get onto the diagram
 
@@ -56,6 +56,7 @@ The second and third uses above rely on verification reports. Here is how they w
 3. The report's format is standardized, so RTL Diagram can present any report that follows it, whichever testbench produced the results. It reads the folder and marks every finding on the port it names.
 
 **What exists today:** the extension reads this format, and the format is [documented](docs/verification-report-format.md), with complete examples in [`test-fixtures/sample-soc`](https://github.com/Hamza-eee/rtl-diagram/tree/main/test-fixtures/sample-soc). Reports can be written by hand, by your own script, or by an AI agent following the format.
+
 **What is planned:** a report script that creates the reports from cocotb, AVL, Verilator and SystemVerilog/UVM test results, and ready-made instructions for agentic workflows. See the [roadmap](docs/ROADMAP.md#reporting).
 
 ## Limitations

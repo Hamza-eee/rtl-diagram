@@ -25,7 +25,7 @@ A finding says where the problem was *seen*, not why it happened. The cause may 
 
 ## Opening a report
 
-The **Verification reports** view lists every report folder in the project (by default any folder holding `reports/<name>/run.json`). **Open Report Folder…** opens one from anywhere on disk. Click a report to show its findings:
+The **Verification reports** view lists every report folder in the project (by default any folder holding `reports/<run_id>/run.json`). **Open Report Folder…** opens one from anywhere on disk. Click a report to show its findings:
 
 - **On the diagram.** Each port where a problem was observed gets a coloured tag with the rule ID, and every block above it shows a count. The statements that directly drive that signal (`assign` statements, `always` blocks and outputs of child instances) are marked with a dotted ring, as places to look first. They are candidates, not a diagnosis.
 - **In the Findings tab.** Findings are grouped into *in this block*, *elsewhere in the design* and *not found in the RTL*, the last with the reason.

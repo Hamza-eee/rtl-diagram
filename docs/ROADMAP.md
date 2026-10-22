@@ -16,7 +16,7 @@ Planned work, roughly in priority order within each section. **Nothing on this p
 
 ## Diagram and navigation
 
-- Run diff: compare two runs by fingerprint and show new, fixed and still-open findings.
+- Report diff: compare two verification reports by fingerprint and show new, fixed and still-open findings.
 - Bug log view: read `bugs.md`, show bug IDs and status on badges.
 - Waveform jump: open a finding's waveform in Surfer or GTKWave at its time window with the flagged signals added.
 - Cross-hierarchy trace: follow a flagged port up and down through instances to every driver and load.

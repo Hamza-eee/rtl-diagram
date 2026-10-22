@@ -52,6 +52,6 @@ Fixtures must stay original: no third-party or proprietary RTL.
 - **Read-only on user repositories.** The extension never runs `bender`, never edits RTL, and writes only notes, in the notes folder.
 - **Untrusted input.** Run files and notes are data from other people and tools: the webview builds DOM with `textContent` only, and commands from findings are never executed for the user.
 
-## Layout
+## Where things are
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together.

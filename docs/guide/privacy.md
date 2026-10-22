@@ -2,7 +2,7 @@
 
 [← Back to the README](../../README.md)
 
-RTL Diagram never connects to the network, and it collects nothing. Your RTL, runs and notes stay on your machine and in your repository.
+RTL Diagram never connects to the network, and it collects nothing. Your RTL, verification reports and notes stay on your machine and in your repository.
 
 ## What it does on your machine
 

@@ -29,7 +29,7 @@ The fields the extension reads:
 | `dut_top` | the module name the findings refer to |
 | `dut_instance` | hierarchical prefix stripped from signal names, e.g. `tb.dut` |
 | `design_doc` | linked from the finding card |
-| `tests`, `totals`, `simulator`, `git_commit`, `dirty` | shown in the run tooltip |
+| `tests`, `totals`, `simulator`, `git_commit`, `dirty` | shown in the report's tooltip |
 | `files.findings` | locating the repository root |
 
 ## findings.sarif
