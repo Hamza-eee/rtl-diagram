@@ -27,6 +27,7 @@ Planned work, roughly in priority order within each section. Nothing here is bui
 - Requirement coverage: colour modules and channels by how many rules cover them and their state.
 - FSM view.
 - Avoid overlaps between finding tags and neighbouring pin labels when blocks are close together.
+- Drag blocks by hand, with wires re-routed around them, and remember the arrangement per module.
 
 ## From the code review (remaining suggestions)
 
