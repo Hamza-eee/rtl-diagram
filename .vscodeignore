@@ -10,7 +10,4 @@ esbuild.mjs
 tsconfig.json
 scripts/**
 .gitignore
-docs/images/**
-docs/DEVELOPMENT.md
-docs/ARCHITECTURE.md
-docs/ROADMAP.md
+docs/**

@@ -1,13 +1,32 @@
 {
   "name": "rtl-diagram",
   "displayName": "RTL Diagram",
-  "description": "Block diagrams of SystemVerilog RTL with verification findings and team notes on the ports they name.",
+  "description": "SystemVerilog block diagrams that catch wiring mistakes as you save, with verification findings and team notes on the ports they name.",
   "version": "0.1.0",
   "publisher": "rtl-diagram",
   "license": "Apache-2.0",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Hamza-eee/rtl-diagram.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hamza-eee/rtl-diagram/issues"
+  },
+  "homepage": "https://github.com/Hamza-eee/rtl-diagram#readme",
+  "icon": "media/icon.png",
+  "preview": true,
   "engines": {
     "vscode": "^1.90.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode the Verible path is taken only from your user settings, never from the folder, since it names a program to run.",
+      "restrictedConfigurations": [
+        "rtlDiagram.veriblePath"
+      ]
+    },
+    "virtualWorkspaces": false
   },
   "categories": [
     "Visualization",
@@ -338,8 +357,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node esbuild.mjs && mocha 'dist/test/unit/**/*.test.js'",
     "test:integration": "node esbuild.mjs && node dist/test/runIntegration.js",
-    "package": "node esbuild.mjs && vsce package --no-dependencies",
-    "package:local": "node esbuild.mjs && vsce package --no-dependencies --allow-missing-repository --skip-license --baseContentUrl https://example.invalid"
+    "package": "node esbuild.mjs && vsce package --no-dependencies"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

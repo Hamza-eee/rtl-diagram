@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as crypto from 'crypto';
 import { Store } from './store';
 import { buildView, DEFAULT_VIEW_OPTIONS, SPACING, Spacing } from './graph';
 import { moduleAtPath } from './elab';
@@ -71,7 +72,7 @@ export class DiagramPanel implements vscode.Disposable {
     const w = this.panel.webview;
     const js = w.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'dist', 'webview.js'));
     const css = w.asWebviewUri(vscode.Uri.joinPath(this.ctx.extensionUri, 'media', 'diagram.css'));
-    const nonce = [...Array(24)].map(() => Math.floor(Math.random() * 36).toString(36)).join('');
+    const nonce = crypto.randomBytes(18).toString('base64');
     const v = encodeURIComponent(__BUILD__);
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
