@@ -144,6 +144,8 @@ Testbench folders are excluded by default through `rtlDiagram.exclude`. Click th
 
 - Parameters are evaluated from their defaults; per-instance overrides don't change widths yet, and generate loops are drawn once with their header rather than expanded.
 - Interfaces and modports are drawn as plain ports.
+- Bender: only the targets you list in `rtlDiagram.benderTargets` are active. Targets that `bender` adds by itself for a given tool (for example `simulation` or `synthesis`) aren't added automatically, and target filters on dependencies aren't applied.
+- When the same instance name appears in several `generate` branches, the instances are told apart by order (`u_x`, `u_x#2`). Reordering those branches can move a note pinned to one of them, or detach it.
 - State machines inside a module are not drawn.
 
 See the [roadmap](docs/ROADMAP.md) for what's planned.

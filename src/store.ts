@@ -93,11 +93,13 @@ export class Store implements vscode.Disposable {
     }
   }
 
-  extraRunDirs(): string[] { return this.ctx.workspaceState.get<string[]>('extraRuns', []); }
+  /** Runs opened by hand ('Open Run Folder…'), remembered per project so they don't leak into another one. */
+  private extraRunsKey(): string { return `extraRuns:${this.project() ?? '*'}`; }
+  extraRunDirs(): string[] { return this.ctx.workspaceState.get<string[]>(this.extraRunsKey(), []).filter(d => fs.existsSync(d)); }
 
   async addRunDir(dir: string) {
     const l = this.extraRunDirs();
-    if (!l.includes(dir)) await this.ctx.workspaceState.update('extraRuns', [...l, dir]);
+    if (!l.includes(dir)) await this.ctx.workspaceState.update(this.extraRunsKey(), [...l, dir]);
     await this.rescanRuns();
     const r = this.runs.find(x => x.dir === dir);
     if (r) this.setActive(r);

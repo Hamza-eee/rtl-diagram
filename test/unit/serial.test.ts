@@ -28,6 +28,17 @@ describe('Serial', () => {
     await p1;
   });
 
+  it('runs a queued pass even if the current one fails, and reports only the last outcome', async () => {
+    const s = new Serial();
+    let n = 0;
+    const job = async () => { n++; await tick(10); if (n === 1) throw new Error('first fails'); };
+    const p1 = s.run(job);
+    await tick(2);
+    const p2 = s.run(job);                       // queued behind the failing pass
+    await Promise.all([p1, p2]);                 // second pass succeeded, so nobody rejects
+    assert.strictEqual(n, 2);
+  });
+
   it('recovers after a failing pass', async () => {
     const s = new Serial();
     await assert.rejects(s.run(async () => { throw new Error('boom'); }), /boom/);

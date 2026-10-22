@@ -273,6 +273,9 @@ let pinEdges = new Map<string, string[]>();
 
 function render(msg: ViewMsg) {
   const prevKey = view ? viewKey() : null;
+  // A note draft or edit belongs to the view it was started in: drop it when the top changes
+  // (which includes switching project), so it can't be saved against the wrong anchor.
+  if (view && view.top !== msg.top) { draft = null; editing = null; focusNotes = []; }
   view = msg;
   const g = msg.graph;
   nodeById = new Map(g.nodes.map(n => [n.id, n]));

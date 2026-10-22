@@ -100,7 +100,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
       const current = store.project();
       type Item = vscode.QuickPickItem & { folder?: string; browse?: boolean };
       const projects = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Looking for RTL projects…' },
-        async () => findProjects(roots));
+        () => findProjects(roots));
       const items: Item[] = [
         ...projects.map(f => ({ label: `$(repo) ${path.basename(f)}`, description: vscode.workspace.asRelativePath(f), folder: f,
           detail: f === current ? 'Current project' : fs.existsSync(path.join(f, 'Bender.yml')) ? 'Bender package' : undefined })),
@@ -150,13 +150,21 @@ export async function activate(ctx: vscode.ExtensionContext) {
   const w3 = vscode.workspace.createFileSystemWatcher('**/{run.json,findings.sarif}');
   let tr: NodeJS.Timeout | undefined;
   const rescanRuns = (uri?: vscode.Uri) => { if (uri && !store.inScope(uri.fsPath)) return; if (tr) clearTimeout(tr); tr = setTimeout(() => void store.rescanRuns(), 400); };
-  const w4 = vscode.workspace.createFileSystemWatcher(`**/${store.notesFolderName()}/*.json`);
   let tn: NodeJS.Timeout | undefined;
   const reloadNotes = (uri?: vscode.Uri) => { if (uri && !store.inScope(uri.fsPath)) return; if (tn) clearTimeout(tn); tn = setTimeout(() => store.reloadNotes(), 200); };
-  w4.onDidChange(reloadNotes); w4.onDidCreate(reloadNotes); w4.onDidDelete(reloadNotes);
+  // The notes watcher follows rtlDiagram.notesFolder, so it is recreated when that setting changes.
+  let w4: vscode.FileSystemWatcher | undefined;
+  const watchNotes = () => {
+    w4?.dispose();
+    w4 = vscode.workspace.createFileSystemWatcher(`**/${store.notesFolderName()}/*.json`);
+    w4.onDidChange(reloadNotes); w4.onDidCreate(reloadNotes); w4.onDidDelete(reloadNotes);
+  };
+  watchNotes();
+  ctx.subscriptions.push({ dispose: () => w4?.dispose() });
   for (const w of [w1, w2]) { w.onDidChange(schedule); w.onDidCreate(schedule); w.onDidDelete(schedule); }
   w3.onDidCreate(rescanRuns); w3.onDidChange(rescanRuns); w3.onDidDelete(rescanRuns);
-  ctx.subscriptions.push(w1, w2, w3, w4, vscode.workspace.onDidChangeConfiguration(e => {
+  ctx.subscriptions.push(w1, w2, w3, vscode.workspace.onDidChangeConfiguration(e => {
+    if (e.affectsConfiguration('rtlDiagram.notesFolder')) { watchNotes(); reloadNotes(); }
     if (e.affectsConfiguration('rtlDiagram')) { schedule(); void store.rescanRuns(); }
   }));
 
@@ -165,7 +173,7 @@ export async function activate(ctx: vscode.ExtensionContext) {
   // offer to pick one instead.
   if (!store.project()) {
     const roots = (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
-    const projects = findProjects(roots);
+    const projects = await findProjects(roots);
     if (projects.length > 1) {
       void vscode.window.showInformationMessage(
         `RTL Diagram found ${projects.length} RTL projects in this workspace and is showing them all together. Choose one?`,
