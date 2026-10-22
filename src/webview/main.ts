@@ -23,7 +23,7 @@ interface NotesMsg { marks: Record<string, NoteMark>; here: string[]; all: NoteV
 interface LiveState { on: boolean; pending: string[] }
 interface ProjectRow { path: string; name: string; rel: string; current: boolean }
 interface ProjectState { label: string; needsChoice: boolean; sources: string; candidates: ProjectRow[]; recent: ProjectRow[] }
-type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'unconnected' | 'sources';
+type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'unconnected' | 'unused' | 'sources';
 interface IssueRow {
   key: string; kind: IssueKind; title: string; detail?: string; modules: string[];
   file?: string; line?: number; col?: number; rel?: string; checked: boolean;
@@ -1481,7 +1481,7 @@ function projectChooser(p: ProjectState) {
 
 // ---------------------------------------------------------------- source issues
 
-const ISSUE_KIND: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', unconnected: 'Not connected:', sources: 'Sources:' };
+const ISSUE_KIND: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', unconnected: 'Not connected:', unused: 'Output not used:', sources: 'Sources:' };
 function openIssueCount() { return (view?.issues ?? []).filter(i => !i.checked).length; }
 
 /** The source-issue glyph used in HTML (chips, tooltips, the checklist). */
@@ -1537,7 +1537,7 @@ function issuesPanel() {
   const open = all.filter(i => !i.checked), done = all.filter(i => i.checked);
   const wrap = h('div', { class: 'issues-panel' },
     h('p', { class: 'muted small pad issues-intro' },
-      'Problems found while reading the RTL. Hatched blocks may be drawn incomplete; magenta pins end up unconnected although the code doesn\'t say so. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'),
+      'Problems found while reading the RTL. Hatched blocks may be drawn incomplete; magenta pins end up unconnected although the code doesn\'t say so, or drive a wire that nothing uses. Tick issues off as you go: ticks last until VS Code closes, and fixed issues disappear by themselves.'),
     h('p', { class: 'muted small pad issues-intro' },
       'A syntax error is reported where it was noticed; the mistake is often just before, such as a missing \';\' on the line above. Design mistakes such as a misspelt name or a width mismatch are valid syntax and aren\'t reported: they show on the diagram as wires that aren\'t connected where you expect.'));
   const row = (i: IssueRow) => {

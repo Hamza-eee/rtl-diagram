@@ -130,7 +130,7 @@ class Extractor {
     const m: Module = {
       name: nameTok.text,
       file: this.src.file,
-      params: [], ports: [], instances: [], drivers: [], reads: [], nets: [],
+      params: [], ports: [], instances: [], drivers: [], reads: [], nets: [], used: [],
       loc: this.loc(decl),
       headerLoc: this.loc({ tag: 'x', children: [kw ?? nameTok, nameTok] }),
     };
@@ -144,6 +144,15 @@ class Extractor {
 
     const items = find(decl, 'kModuleItemList');
     this.items(items, m, []);
+    // Is a name used anywhere? Counted over every identifier in the body, including index
+    // expressions, assertions and anything else not modelled above, so that "unused" is never
+    // claimed for a name that is in fact referenced. Instance port lists are left out: those are
+    // analysed separately, with the direction of each pin.
+    const counts = new Map<string, number>();
+    this.countIdentifiers(items, counts);
+    const declared = new Map<string, number>();
+    for (const n of m.nets) declared.set(n, (declared.get(n) ?? 0) + 1);
+    m.used = [...counts].filter(([name, n]) => n > (declared.get(name) ?? 0)).map(([name]) => name);
     // Unique keys: the same instance name may appear in several if/else generate branches.
     const seen = new Map<string, number>();
     for (const inst of m.instances) {
@@ -152,6 +161,14 @@ class Extractor {
       inst.key = k === 1 ? inst.name : `${inst.name}#${k}`;
     }
     return m;
+  }
+
+  countIdentifiers(n: N, counts: Map<string, number>) {
+    for (const c of kids(n)) {
+      if (c.tag === 'kPortActualList') continue;
+      if (isToken(c)) { if (c.tag === 'SymbolIdentifier' && c.text) counts.set(c.text, (counts.get(c.text) ?? 0) + 1); }
+      else this.countIdentifiers(c, counts);
+    }
   }
 
   param(p: CstNode, m: Module, bodyLevel: boolean) {

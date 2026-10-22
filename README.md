@@ -20,7 +20,7 @@ Here are three ways to use it:
 
 You write RTL with a block diagram already in your head. RTL Diagram draws that diagram from your code, so you can compare what you wrote with what you meant, and see things that are easy to miss in text, such as a port wired to the wrong place. Click a block or a port to jump to its source line.
 
-- **Static checks before compilation, similar to linting but shown on the diagram.** For instance, a `.*` that misses a port, a connection to a port that was renamed or doesn't exist, or an input left unconnected is marked on the pin, with a suggested fix such as *did you mean `.clk_x(clk_i)`?* Files that don't parse mark the blocks they affect. → [Checks](docs/guide/checks.md)
+- **Static checks before compilation, similar to linting but shown on the diagram.** For instance, a `.*` that misses a port, a connection to a port that was renamed or doesn't exist, an input left unconnected, or a block output wired to a wire that nothing uses is marked on the pin, with a suggested fix such as *did you mean `.clk_x(clk_i)`?* Files that don't parse mark the blocks they affect. → [Checks](docs/guide/checks.md)
 - **Explore unfamiliar designs**, such as third-party IP or a colleague's block, without reading them line by line. Open any block to see what is inside, trace a signal through the design, and jump to its source line. → [Reading and navigating the diagram](docs/guide/diagram.md)
 - **Leave notes for yourself** on any port, wire or block as you work. → [Notes](docs/guide/notes.md)
 - **The diagram updates live with the RTL.** It is redrawn each time you save an RTL file. You can turn live updates off with the toolbar's Live button to save computing power on large designs. → [Toolbar](docs/guide/diagram.md#toolbar)

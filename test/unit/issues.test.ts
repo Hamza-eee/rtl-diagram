@@ -5,7 +5,7 @@ import * as path from 'path';
 import { parseFiles } from '../../src/sv/verible';
 import { extractModules } from '../../src/sv/extract';
 import { buildDesign } from '../../src/elab';
-import { FileErrors, closestNames, collectIssues, connectionIssues, declaredModules, issueMarksFor } from '../../src/issues';
+import { FileErrors, closestNames, collectIssues, connectionIssues, declaredModules, issueMarksFor, unusedOutputIssues } from '../../src/issues';
 import { Module } from '../../src/model';
 import { VERIBLE, designOf } from './helpers';
 
@@ -150,6 +150,56 @@ describe('connection fixes', () => {
     // .* with near-named signals in the parent
     assert.match(iss.find(i => i.inst!.key === 'u_b' && i.inst!.port === 'rst_n')!.detail!, /Did you mean \.rst_n\(rst_ni\)\?/);
     assert.ok(!iss.some(i => i.inst!.key === 'u_b' && i.inst!.port === 'q'));     // top has a q: .* connects it
+    fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('unused outputs', () => {
+  async function unused() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rtl-unused-'));
+    const w = (n: string, t: string) => { fs.writeFileSync(path.join(dir, n), t); return path.join(dir, n); };
+    const files = [
+      w('leaf.sv', 'module leaf(input logic clk, input logic d, output logic q, output logic r);\n  assign q = d;\n  assign r = ~d;\nendmodule\n'),
+      w('sink.sv', 'module sink(input logic a);\nendmodule\n'),
+      w('top.sv', [
+        'module top(input logic clk, input logic d, output logic out);',
+        '  logic w_dead, w_assign, w_inst, w_index, w_assert, w_vendor, w_two, y;',
+        '  logic [3:0] mem;',
+        '  leaf u_dead   (.clk(clk), .d(d), .q(w_dead),   .r());',      // reported: nothing uses w_dead
+        '  leaf u_assign (.clk(clk), .d(d), .q(w_assign), .r());',      // read by an assign
+        '  leaf u_inst   (.clk(clk), .d(d), .q(w_inst),   .r());',      // feeds another instance
+        '  sink u_sink   (.a(w_inst));',
+        '  leaf u_index  (.clk(clk), .d(d), .q(w_index),  .r());',      // only used as an index
+        '  leaf u_port   (.clk(clk), .d(d), .q(out),      .r());',      // straight to a module port
+        '  leaf u_assert (.clk(clk), .d(d), .q(w_assert), .r());',      // only used in an assertion
+        '  leaf u_vendor (.clk(clk), .d(d), .q(w_vendor), .r());',      // read by a module that is not in the sources
+        '  vendor_cell u_v (.a(w_vendor));',
+        '  leaf u_two    (.clk(clk), .d(d), .q(w_two),    .r(w_two));',   // both outputs on one dead wire',
+        '  assign mem = {3\'b0, w_assign};',
+        '  assign y = mem[w_index];',
+        '  assert property (@(posedge clk) w_assert |-> d);',
+        'endmodule', ''].join('\n')),
+    ];
+    const d = await designOf(files);
+    return { dir, d, issues: unusedOutputIssues(d) };
+  }
+
+  it('reports an instance output wired to a wire nothing uses, and nothing that is used', async () => {
+    const { dir, issues } = await unused();
+    assert.deepStrictEqual(issues.map(i => `${i.inst!.key}.${i.inst!.port}`).sort(), ['u_dead.q', 'u_two.q', 'u_two.r']);
+    const dead = issues.find(i => i.inst!.key === 'u_dead')!;
+    assert.strictEqual(dead.kind, 'unused');
+    assert.strictEqual(dead.line, 4);
+    assert.match(dead.detail!, /w_dead is driven by u_dead\.q, but nothing in top uses it\. Use it, remove the wire, or write \.q\(\)/);
+    fs.rmSync(dir, { recursive: true });
+  });
+
+  it('marks the pin on the instance and counts the block in the parent view', async () => {
+    const { dir, d, issues } = await unused();
+    const m = issueMarksFor(d, issues, new Set(), 'top');
+    assert.ok(m.pins['inst:u_dead/q'].startsWith('Output not used: u_dead.q'));
+    assert.deepStrictEqual(m.nodes['inst:u_dead'], { count: 1, inside: false, hatch: false });
+    assert.strictEqual(m.nodes['inst:u_assign'], undefined);
     fs.rmSync(dir, { recursive: true });
   });
 });

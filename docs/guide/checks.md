@@ -12,6 +12,7 @@ While it reads the RTL, the extension finds problems that would otherwise surfac
 | **Not found** | An instance of a module that isn't in the files read: a vendor primitive, a missing dependency, a file outside the sources, or a file whose syntax errors stopped Verible from reading it (the entry says which) | The block is dashed, marked *not in sources* |
 | **Declared more than once** | Two files declare the same module. The first in source order is used, as a compiler would | Hatched block |
 | **Not connected** | A pin that ends up connected to nothing although the code doesn't say so (below) | Magenta pin, `</>` badge on the block |
+| **Output not used** | An instance output wired to an internal wire that nothing else uses (below) | Magenta output pin, `</>` badge on the block |
 | **Sources** | An unreadable `Bender.yml`, a glob that matched nothing, a missing filelist entry | — |
 
 ### Not connected
@@ -24,6 +25,17 @@ Four cases are reported:
 - **An input left out of the connection list.** It floats.
 
 An explicit `.p()` is taken as deliberate and isn't reported. Each entry links to the instance line and to the module's port list.
+
+### Output not used
+
+A block's output is connected to an internal wire, and nothing in the module uses that wire: no `assign` or `always` code, no other block's input, no assertion, not even as an index. The output does nothing, which is usually a forgotten connection or what remains after a change. For example, `.full(fifo_full)` where `fifo_full` is declared and never read.
+
+This is **not** reported when:
+- the output goes straight to one of the module's own ports;
+- the output is left open on purpose, with `.full()`;
+- the wire is used anywhere in the module, including only in an assertion or as an index.
+
+The message offers the same ways out: use the wire, remove it, or write `.full()` to say the output is deliberately unused. A wire used only from outside the module (a hierarchical reference such as `u_top.u_fifo.full`) is not seen, so it would be reported. If an unused output is intentional, tick the issue off in the Issues tab, or leave the pin open.
 
 ## The Issues tab
 

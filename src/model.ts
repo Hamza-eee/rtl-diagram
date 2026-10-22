@@ -70,6 +70,7 @@ export interface Module {
   drivers: Driver[];     // assignments to any identifier inside this module (continuous + procedural)
   reads: string[];       // identifiers referenced by this module's own assign/always/initial code
   nets: string[];        // declared internal net/variable names
+  used: string[];        // names that appear in the body outside their own declaration and instance port lists
   loc: SrcLoc;           // whole declaration
   headerLoc: SrcLoc;     // `module name` keyword..name
 }

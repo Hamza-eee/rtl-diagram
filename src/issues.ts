@@ -7,10 +7,10 @@ import * as path from 'path';
 import { Design } from './model';
 import { resolveConnections } from './elab';
 
-export type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'unconnected' | 'sources';
+export type IssueKind = 'syntax' | 'duplicate' | 'missing' | 'unconnected' | 'unused' | 'sources';
 
 /** How each kind is named in the UI ("Syntax error near 'rptr'", "Not found: module x"). */
-export const ISSUE_KIND_LABEL: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', unconnected: 'Not connected:', sources: 'Sources:' };
+export const ISSUE_KIND_LABEL: Record<IssueKind, string> = { syntax: 'Syntax error', duplicate: 'Declared more than once:', missing: 'Not found:', unconnected: 'Not connected:', unused: 'Output not used:', sources: 'Sources:' };
 
 export interface SourceIssue {
   key: string;            // stable identity, used to remember a tick for the session
@@ -111,7 +111,7 @@ export function collectIssues(d: Design, files: FileErrors[], sourceProblems: st
     });
   }
 
-  out.push(...connectionIssues(d));
+  out.push(...connectionIssues(d), ...unusedOutputIssues(d));
 
   for (const p of sourceProblems) out.push({ key: `sources:${p}`, kind: 'sources', title: p, modules: [] });
   return out;
@@ -204,6 +204,44 @@ export function connectionIssues(d: Design): SourceIssue[] {
           ? ` The list has ${either(near.map(n => `.${n}(${phantom.find(c => c.port === n)!.expr})`))}, which ${near.length === 1 ? 'isn\'t a port' : 'aren\'t ports'} of ${child.name}: did you mean ${either(near.map(n => `.${p.name}(${phantom.find(c => c.port === n)!.expr})`))}?`
           : ` Connect it, or write .${p.name}() to leave it open on purpose.`;
         add(p.name, `${inst.name}.${p.name}`, `This input isn't in ${inst.name}'s connection list, so it floats.${hint}`);
+      }
+    });
+  }
+  return out;
+}
+
+/**
+ * An instance output wired to an internal wire that nothing uses: no logic, no other instance's
+ * input, no assertion, no index expression. Connecting an output straight to one of the module's
+ * own ports is fine, and so is an explicit `.p()`; both are not reported. A wire that nothing
+ * drives, or that is declared and never connected, is a different problem and not checked here.
+ */
+export function unusedOutputIssues(d: Design): SourceIssue[] {
+  const out: SourceIssue[] = [];
+  for (const m of Object.values(d.modules)) {
+    const ports = new Set(m.ports.map(p => p.name));
+    const internal = new Set(m.nets.filter(n => !ports.has(n)));
+    if (!internal.size) continue;
+    const used = new Set(m.used);
+    const conns = m.instances.map((inst, i) => resolveConnections(d, m, i));
+    // Wires some instance reads. A pin of unknown direction (module not found) counts as a read.
+    const read = new Set<string>();
+    for (const list of conns) for (const c of list) if (c.dir !== 'output') for (const s of c.signals) read.add(s);
+    m.instances.forEach((inst, i) => {
+      for (const c of conns[i]) {
+        if (c.dir !== 'output') continue;
+        const dead = c.signals.filter(s => internal.has(s) && !read.has(s) && !used.has(s));
+        if (!dead.length) continue;
+        const names = dead.join(', ');
+        const plural = dead.length > 1;
+        out.push({
+          key: `unused:${m.name}:${inst.key}:${c.port}`, kind: 'unused',
+          title: `${inst.name}.${c.port} \u2192 ${names}`,
+          detail: `${names} ${plural ? 'are' : 'is'} driven by ${inst.name}.${c.port}, but nothing in ${m.name} uses ${plural ? 'them' : 'it'}. `
+            + `Use ${plural ? 'them' : 'it'}, remove the wire, or write .${c.port}() to leave the output open on purpose.`,
+          file: m.file, line: (inst.connections.find(x => x.port === c.port)?.loc.line ?? inst.loc.line) + 1,
+          modules: [m.name], inst: { module: m.name, key: inst.key, port: c.port },
+        });
       }
     });
   }

@@ -37,6 +37,7 @@ First public version.
   - connections to ports the module doesn't have (drawn struck through);
   - extra positional connections;
   - inputs left out of the connection list.
+- *Output not used*: a block output wired to an internal wire that nothing uses (no logic, no other block, no assertion), with the pin drawn in magenta. Outputs left open with `.p()` or wired to a module port are not reported.
 
 **Projects and sources**
 - RTL from Bender (ordered sources, path dependencies, target expressions), `.f` filelists, or all `.sv` / `.v` files.
