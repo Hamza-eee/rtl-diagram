@@ -75,7 +75,10 @@ The full list is in [Troubleshooting and limitations](docs/guide/troubleshooting
    - Linux and Windows: download a [release](https://github.com/chipsalliance/verible/releases) and add its `bin` folder to your `PATH`, or set `rtlDiagram.veriblePath` to the full path.
 
    Check with `verible-verilog-syntax --version`. Tested with Verible v0.0-3946.
-2. **Install the extension.** Download the `.vsix` file from the [releases page](https://github.com/Hamza-eee/rtl-diagram/releases), then in VS Code run **Extensions: Install from VSIX…** (VS Code 1.90 or later).
+2. **Install the extension.** Download the `.vsix` file from the [releases page](https://github.com/Hamza-eee/rtl-diagram/releases). Then, in VS Code 1.90 or later:
+   1. Open the Command Palette, the search box at the top of the window: press `Cmd+Shift+P` (`Ctrl+Shift+P` on Windows and Linux).
+   2. Type `>Extensions: Install from VSIX…` and choose it. The `>` at the start tells VS Code to search commands; it is already there when you open the palette with the shortcut.
+   3. Pick the downloaded `.vsix` file.
 3. **Open a folder with your RTL**, click the **RTL Diagram** icon in the activity bar, and click a module in the **Hierarchy** list in the side bar (it shows each module and the blocks inside it).
 
 Nothing else is needed: no simulator, no licence server, no Python. git is optional; it names note authors and tells whether a verification report still matches the RTL. Press `?`, or click the `?` button in the toolbar at the top, to see the keyboard shortcuts.
