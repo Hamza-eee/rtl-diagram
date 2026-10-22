@@ -22,6 +22,7 @@ export interface SourceIssue {
   col?: number;           // 1-based
   modules: string[];      // modules whose drawing this affects
   inst?: { module: string; key: string; port: string };   // one instance pin (connection issues)
+  related?: { file: string; line: number; label: string }; // a second place worth opening (1-based line)
 }
 
 export interface FileErrors {
@@ -116,43 +117,93 @@ export function collectIssues(d: Design, files: FileErrors[], sourceProblems: st
   return out;
 }
 
+/** Edit distance, for "did you mean" suggestions. */
+function distance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+  }
+  return row[b.length];
+}
+
 /**
- * Instance pins that end up connected to nothing although the code doesn't say so explicitly:
- * a `.*` port with no same-named signal in the parent (an elaboration error in SystemVerilog),
- * a named or positional connection to a port the module doesn't have, and an input left out of
- * the connection list. An explicit `.p()` is deliberate and not reported.
+ * Names in `pool` close to `name`: a small edit distance, or one name extending the other
+ * (clk / clk_i, rst_n / rst_ni). The closest one or two, or none if nothing is close.
+ */
+export function closestNames(name: string, pool: string[]): string[] {
+  const n = name.toLowerCase();
+  const scored = pool.filter(p => p !== name).map(p => {
+    const q = p.toLowerCase();
+    const d = distance(n, q);
+    const affix = Math.min(n.length, q.length) >= 2 && (q.startsWith(n) || n.startsWith(q) || q.endsWith(n) || n.endsWith(q));
+    return { p, d, ok: d <= Math.max(1, Math.floor(Math.max(n.length, q.length) / 3)) || affix };
+  }).filter(x => x.ok).sort((a, b) => a.d - b.d || a.p.localeCompare(b.p));
+  return scored.filter(x => x.d === scored[0]?.d).slice(0, 2).map(x => x.p);
+}
+
+const either = (xs: string[]) => xs.join(' or ');
+
+/**
+ * Instance pins that end up connected to nothing although the code doesn't say so: a `.*` port
+ * with no same-named signal in the parent (an elaboration error in SystemVerilog), a named or
+ * positional connection to a port the module doesn't have, and an input left out of the
+ * connection list. An explicit `.p()` is deliberate and not reported. Where a likely fix exists
+ * (a port that was renamed, a signal with a near name), the message suggests it.
  */
 export function connectionIssues(d: Design): SourceIssue[] {
   const out: SourceIssue[] = [];
   for (const m of Object.values(d.modules)) {
+    const signals = [...m.ports.map(p => p.name), ...m.nets];
     m.instances.forEach((inst, i) => {
       const child = d.modules[inst.moduleName];
       if (!child) return;                                // reported as "Not found" instead
       const conns = resolveConnections(d, m, i);
+      const ports = { file: child.file, line: (child.headerLoc ?? child.loc).line + 1, label: `${child.name}'s ports` };
       const add = (port: string, title: string, detail: string, line = inst.loc.line) => out.push({
         key: `unconnected:${m.name}:${inst.key}:${port}`, kind: 'unconnected', title, detail,
-        file: m.file, line: line + 1, modules: [m.name], inst: { module: m.name, key: inst.key, port },
+        file: m.file, line: line + 1, modules: [m.name], inst: { module: m.name, key: inst.key, port }, related: ports,
       });
+      const listed = new Set(conns.map(c => c.port));
+      // Ports of the child that end up unconnected, and connections naming ports it doesn't have.
+      const unconnected = child.ports.filter(p => !listed.has(p.name) || conns.some(c => c.port === p.name && c.implicit && c.expr === '' && inst.wildcard));
+      const phantom = conns.filter(c => !c.port.startsWith('#') && !child.ports.some(p => p.name === c.port));
+
       for (const c of conns) {
         const formal = child.ports.find(p => p.name === c.port);
         if (!formal) {
           const src = inst.connections.find(x => (x.port || (x.position !== undefined ? `#${x.position}` : '')) === c.port);
-          const positional = c.port.startsWith('#');
-          add(c.port, `${inst.name}: ${positional ? `connection ${Number(c.port.slice(1)) + 1} (${c.expr || 'empty'})` : `.${c.port}(${c.expr})`}`,
-            positional
-              ? `${inst.moduleName} has only ${child.ports.length} port${child.ports.length === 1 ? '' : 's'}, so this positional connection goes nowhere.`
-              : `${inst.moduleName} has no port named ${c.port}, so ${c.expr || 'this connection'} goes nowhere.`,
+          if (c.port.startsWith('#')) {
+            add(c.port, `${inst.name}: connection ${Number(c.port.slice(1)) + 1} (${c.expr || 'empty'})`,
+              `${inst.moduleName} has only ${child.ports.length} port${child.ports.length === 1 ? '' : 's'}, so this positional connection goes nowhere. Remove it, or check the order against ${child.name}'s ports.`,
+              src?.loc.line);
+            continue;
+          }
+          const near = closestNames(c.port, unconnected.map(p => p.name));
+          add(c.port, `${inst.name}: .${c.port}(${c.expr})`,
+            `${inst.moduleName} has no port named ${c.port}, so ${c.expr || 'this connection'} goes nowhere. ` + (near.length
+              ? `Its ${near.map(n => child.ports.find(p => p.name === n)!.dir).join('/')} ${either(near)} ${near.length === 1 ? 'isn\'t' : 'aren\'t'} connected: did you mean ${either(near.map(n => `.${n}(${c.expr})`))}?`
+              : `Remove the connection, or add a ${c.port} port to ${child.name}.`),
             src?.loc.line);
         } else if (c.implicit && c.expr === '' && inst.wildcard) {
+          const near = closestNames(c.port, signals);
           add(c.port, `${inst.name}.${c.port}`,
-            `.* connects each port to the signal with the same name, and ${m.name} has no signal named ${c.port}, so this ${formal.dir} is left unconnected. SystemVerilog rejects this at elaboration; connect it by name.`);
+            `.* connects each port to the signal with the same name, and ${m.name} has no signal named ${c.port}, so this ${formal.dir} is left unconnected. SystemVerilog rejects this at elaboration. `
+            + (near.length ? `Did you mean ${either(near.map(n => `.${c.port}(${n})`))}? Add it next to the .*.` : `Connect it by name next to the .*.`));
         }
       }
-      const listed = new Set(conns.map(c => c.port));
       for (const p of child.ports) {
         if (listed.has(p.name) || p.dir !== 'input') continue;
-        add(p.name, `${inst.name}.${p.name}`,
-          `This input isn't in ${inst.name}'s connection list, so it floats. Connect it, or write .${p.name}() to leave it open on purpose.`);
+        const near = closestNames(p.name, phantom.map(c => c.port));
+        const hint = near.length
+          ? ` The list has ${either(near.map(n => `.${n}(${phantom.find(c => c.port === n)!.expr})`))}, which ${near.length === 1 ? 'isn\'t a port' : 'aren\'t ports'} of ${child.name}: did you mean ${either(near.map(n => `.${p.name}(${phantom.find(c => c.port === n)!.expr})`))}?`
+          : ` Connect it, or write .${p.name}() to leave it open on purpose.`;
+        add(p.name, `${inst.name}.${p.name}`, `This input isn't in ${inst.name}'s connection list, so it floats.${hint}`);
       }
     });
   }

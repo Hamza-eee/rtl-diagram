@@ -49,7 +49,8 @@ If you opened a folder that holds several projects (for example a parent folder 
 | Trace a net | Click a pin, wire or net label |
 | See a block's parameters and links | Click the block; the **Details** tab has *Go to instance* and *Go to definition* |
 | Fit, zoom | `F`, `+`, `-`, `0` for 100%, or the mouse wheel / trackpad pinch |
-| Find a block or port | Press `/` and type; Enter jumps to it, Esc closes |
+| Find a block or port | Type in the search box (or press `/` to jump to it); Enter goes to the match |
+| See every shortcut | The toolbar's `?` button, the `?` key, or *Shortcuts* in the bottom bar |
 | Switch theme | The toolbar button cycles Auto, Light and Dark |
 | Pause redrawing | The toolbar's **Live** button. While paused, the diagram stays as drawn and a banner lists the RTL files saved since, with *Refresh* |
 | Add a note | Right-click a port, pin, wire, block or empty space |

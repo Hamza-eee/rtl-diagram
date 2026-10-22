@@ -5,7 +5,7 @@ import * as path from 'path';
 import { parseFiles } from '../../src/sv/verible';
 import { extractModules } from '../../src/sv/extract';
 import { buildDesign } from '../../src/elab';
-import { FileErrors, collectIssues, connectionIssues, declaredModules, issueMarksFor } from '../../src/issues';
+import { FileErrors, closestNames, collectIssues, connectionIssues, declaredModules, issueMarksFor } from '../../src/issues';
 import { Module } from '../../src/model';
 import { VERIBLE, designOf } from './helpers';
 
@@ -123,6 +123,33 @@ describe('connection issues', () => {
     assert.deepStrictEqual(m.nodes['inst:u_star'], { count: 2, inside: false, hatch: false });
     assert.ok(m.pins['inst:u_star/clk'].startsWith('Not connected: u_star.clk'));
     assert.strictEqual(m.module, 0);
+    fs.rmSync(dir, { recursive: true });
+  });
+});
+
+describe('connection fixes', () => {
+  it('finds near names: extended, trimmed or one edit away', () => {
+    assert.deepStrictEqual(closestNames('clk', ['clk_x', 'rst_n', 'div']), ['clk_x']);
+    assert.deepStrictEqual(closestNames('rst_n', ['clk_i', 'rst_ni', 'div']), ['rst_ni']);
+    assert.deepStrictEqual(closestNames('paddr', ['paddr_i', 'pwdata_i']), ['paddr_i']);
+    assert.deepStrictEqual(closestNames('load', ['clk', 'mode']), []);
+  });
+
+  it('pairs a connection to a missing port with the renamed port, both ways', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rtl-fix-'));
+    const w = (n: string, t: string) => { fs.writeFileSync(path.join(dir, n), t); return path.join(dir, n); };
+    const d = await designOf([
+      w('core.sv', 'module core(input logic clk_x, input logic rst_n, output logic q);\nendmodule\n'),
+      w('top.sv', 'module top(input logic clk_i, input logic rst_ni, output logic q, q2);\n  core u_a (.clk(clk_i), .rst_n(rst_ni), .q(q));\n  core u_b (.*, .clk_x(clk_i));\nendmodule\n'),
+    ]);
+    const iss = connectionIssues(d);
+    const phantom = iss.find(i => i.inst!.key === 'u_a' && i.inst!.port === 'clk')!;
+    assert.match(phantom.detail!, /no port named clk.*input clk_x isn't connected: did you mean \.clk_x\(clk_i\)\?/);
+    assert.match(iss.find(i => i.inst!.key === 'u_a' && i.inst!.port === 'clk_x')!.detail!, /did you mean \.clk_x\(clk_i\)\?/);
+    assert.deepStrictEqual(phantom.related, { file: path.join(dir, 'core.sv'), line: 1, label: "core's ports" });
+    // .* with near-named signals in the parent
+    assert.match(iss.find(i => i.inst!.key === 'u_b' && i.inst!.port === 'rst_n')!.detail!, /Did you mean \.rst_n\(rst_ni\)\?/);
+    assert.ok(!iss.some(i => i.inst!.key === 'u_b' && i.inst!.port === 'q'));     // top has a q: .* connects it
     fs.rmSync(dir, { recursive: true });
   });
 });

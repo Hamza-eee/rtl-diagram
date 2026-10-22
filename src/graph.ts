@@ -21,6 +21,7 @@ export interface VPin {
   expr?: string;                  // actual expression for instance pins
   open?: boolean;                 // left unconnected `.p()`
   tie?: boolean;                  // connected to a constant only
+  phantom?: boolean;              // the connection names a port the module doesn't have
   tieLevel?: 0 | 1;               // the constant is all zeros (ground) or all ones (supply)
   netLabels?: string[];           // nets drawn as labels at this pin instead of wires
   loc?: SrcLoc;
@@ -186,6 +187,7 @@ export async function buildView(d: Design, m: Module, opts: ViewOptions = DEFAUL
       const cp = child?.ports.find(p => p.name === c.port);
       const pin = pinFor(c.port, pinDir(c.dir), cp);
       pin.expr = c.expr;
+      pin.phantom = !!child && !cp;
       pin.open = c.expr === '';
       pin.tie = c.expr !== '' && c.signals.length === 0;
       if (pin.tie) pin.tieLevel = tieLevel(c.expr, pin.width);

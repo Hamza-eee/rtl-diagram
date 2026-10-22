@@ -28,6 +28,7 @@ interface IssueRow {
   key: string; kind: IssueKind; title: string; detail?: string; modules: string[];
   file?: string; line?: number; col?: number; rel?: string; checked: boolean;
   inst?: { module: string; key: string; port: string };
+  related?: { file: string; line: number; label: string };
 }
 interface IssueMarks { module: number; nodes: Record<string, { count: number; inside: boolean; hatch?: boolean }>; pins?: Record<string, string> }
 interface ViewMsg {
@@ -127,8 +128,9 @@ const toolbar = h('header', { class: 'toolbar' });
 const crumbsEl = h('nav', { class: 'crumbs', 'aria-label': 'Hierarchy' });
 const findInput = h('input', { class: 'find', type: 'search', placeholder: 'Find block or port', 'aria-label': 'Find block or port', spellcheck: 'false' });
 const findResults = h('ul', { class: 'find-results', role: 'listbox', hidden: true });
-// Find has no toolbar box: '/' opens it over the diagram, and it closes when done.
-const findWrap = h('div', { class: 'find-wrap find-pop', hidden: true }, icon('search'), findInput, findResults);
+const findWrap = h('div', { class: 'find-wrap' }, icon('search'), findInput, findResults);
+const cheatsBtn = h('button', { class: 'tb-btn cheats-btn', title: 'Keyboard and mouse shortcuts (?)', 'aria-haspopup': 'dialog' }, h('span', { class: 'tb-key' }, '?'));
+const cheats = h('div', { class: 'cheats', role: 'dialog', 'aria-label': 'Shortcuts', hidden: true });
 const zoomLabel = h('button', { class: 'zoom-label', title: 'Reset to 100% (0)' }, '100%');
 const themeBtn = h('button', { class: 'tb-btn', title: 'Theme: follow VS Code' }, icon('theme'), h('span', { class: 'tb-btn-label' }, 'Auto'));
 const drawerBtn = h('button', { class: 'tb-btn', title: 'Toggle side panel' }, icon('drawer'));
@@ -155,13 +157,14 @@ const upBtn = h('button', { class: 'tb-btn', title: 'Up one level (Backspace)' }
 toolbar.append(
   upBtn, crumbsEl,
   h('div', { class: 'tb-spacer' }),
+  findWrap,
   h('div', { class: 'tb-group', role: 'group', 'aria-label': 'Zoom' },
     h('button', { class: 'tb-btn', title: 'Zoom out (−)', onclick: () => zoomBy(1 / 1.25) }, icon('minus')),
     zoomLabel,
     h('button', { class: 'tb-btn', title: 'Zoom in (+)', onclick: () => zoomBy(1.25) }, icon('plus')),
     h('button', { class: 'tb-btn', title: 'Fit to window (F)', onclick: () => fit(true) }, icon('fit')),
   ),
-  spacingBtn, liveBtn, themeBtn, drawerBtn,
+  spacingBtn, liveBtn, themeBtn, cheatsBtn, drawerBtn,
 );
 const stage = h('main', { class: 'stage', tabindex: '0', 'aria-label': 'Block diagram' });
 const svg = s('svg', { class: 'canvas', role: 'img' });
@@ -194,7 +197,7 @@ const updateBanner = h('div', { class: 'update-banner', role: 'alert', hidden: h
   'This window still runs the previous version, so some buttons won\'t respond. Reload the window to finish: open the Command Palette and run ',
   h('span', { class: 'mono' }, 'Developer: Reload Window'), '.');
 const ctxMenu = h('div', { class: 'ctxmenu', role: 'menu', hidden: true });
-stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay, updateBanner, findWrap);
+stage.append(svg, tooltip, minimap, stageChips, pendingBanner, ctxMenu, overlay, updateBanner, cheats);
 document.body.append(projMenu);
 
 const drawer = h('aside', { class: 'drawer', 'aria-label': 'Findings and details' });
@@ -502,7 +505,7 @@ function drawNode(n: VNode, mk: Markers) {
 
 function drawPin(g: SVGGElement, n: VNode, p: VPin) {
   const out = p.side === 'E' ? 1 : -1;
-  const pg = s('g', { class: `pin ${tier(p.width)}${p.open ? ' open' : ''}${p.tie ? ' tie' : ''}`, 'data-pin': p.id, ...pinColorAttr(p.name) });
+  const pg = s('g', { class: `pin ${tier(p.width)}${p.open ? ' open' : ''}${p.tie ? ' tie' : ''}${p.phantom ? ' phantom' : ''}`, 'data-pin': p.id, ...pinColorAttr(p.name) });
   pg.append(s('line', { x1: p.x, y1: p.y, x2: p.x + out * 9, y2: p.y, class: 'stub' }));
   // Direction arrowhead on the stub: into the block for inputs, out of it for outputs, both for inouts.
   const head = (tip: number, back: number) => s('path', { d: `M${tip} ${p.y}L${back} ${p.y - 3.2}L${back} ${p.y + 3.2}Z`, class: 'pin-arrow' });
@@ -695,6 +698,7 @@ function pinTip(id: string) {
   return h('div', {},
     h('div', { class: 'tip-title mono' }, pin.name),
     kv('direction', pin.dir), pin.range ? kv('range', pin.range) : null, pin.width ? kv('width', `${pin.width} bit${pin.width > 1 ? 's' : ''}`) : null,
+    pin.phantom ? h('div', { class: 'warn small' }, `Not a port of ${node.sub}: this connection goes nowhere.`) : null,
     !isTerm && pin.expr !== undefined ? kv('connected', pin.expr === '' ? 'open' : pin.expr) : null,
     view?.issueMarks.pins?.[id] ? h('div', { class: 'tip-f' }, issueGlyph('sm'), view.issueMarks.pins[id]) : null,
     h('div', { class: 'tip-hint' }, 'Click to trace the net'));
@@ -787,7 +791,8 @@ function renderStatus() {
     h('button', { class: 'st-link st-sources', title: 'Where the RTL comes from: Bender, filelists (.f) or a file pattern. Click to change it for this project.',
       onclick: () => vscode.postMessage({ type: 'configureSources' }) }, icon('sources'), `Sources: ${view.sourceMode}`, h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾')),
     h('span', { class: 'st-spacer' }),
-    h('span', { class: 'st muted keys' }, 'Double-click a block to open it · double-click empty space or Backspace to go up · F fits · / finds'),
+    h('span', { class: 'st muted keys' }, 'Double-click a block to open it · double-click empty space to go up'),
+    h('button', { class: 'st-link st-cheats', onclick: () => toggleCheats() }, 'Shortcuts (?)'),
   ));
 }
 
@@ -821,7 +826,7 @@ findInput.addEventListener('keydown', e => {
   else if (e.key === 'Enter') { c[findIdx]?.act(); findInput.blur(); }
   else if (e.key === 'Escape') { findInput.value = ''; findInput.blur(); }
 });
-findInput.addEventListener('blur', () => setTimeout(() => { findResults.hidden = true; findWrap.hidden = true; findInput.value = ''; }, 100));
+findInput.addEventListener('blur', () => setTimeout(() => { findResults.hidden = true; }, 100));
 
 // keyboard
 window.addEventListener('keydown', e => {
@@ -832,9 +837,50 @@ window.addEventListener('keydown', e => {
   else if (e.key === '+' || e.key === '=') zoomBy(1.25);
   else if (e.key === '-' || e.key === '_') zoomBy(0.8);
   else if (e.key === '0') zoomLabel.click();
-  else if (e.key === '/') { e.preventDefault(); findWrap.hidden = false; findInput.focus(); }
-  else if (e.key === 'Escape') select(null);
+  else if (e.key === '/') { e.preventDefault(); findInput.focus(); }
+  else if (e.key === '?') toggleCheats();
+  else if (e.key === 'Escape') { if (!cheats.hidden) cheats.hidden = true; else select(null); }
 });
+
+// ---------------------------------------------------------------- shortcuts sheet
+const CHEATS: [string, [string, string][]][] = [
+  ['Move around', [
+    ['Double-click a block', 'open it'],
+    ['Double-click empty space, Backspace or Alt+↑', 'go up one level'],
+    ['Breadcrumb segment', 'jump to that level'],
+    ['Drag empty space', 'pan'],
+    ['Wheel or pinch, + and −', 'zoom'],
+    ['0', 'zoom to 100%'],
+    ['F', 'fit the diagram to the window'],
+    ['Minimap', 'click or drag to move the view'],
+  ]],
+  ['Find and inspect', [
+    ['/', 'jump to the search box (↑ ↓ to choose, Enter to go, Esc to leave)'],
+    ['Click a block, pin or wire', 'trace its net and show details'],
+    ['Hover a block', 'fade wires that don\'t touch it'],
+    ['Esc', 'clear the selection'],
+  ]],
+  ['Notes and issues', [
+    ['Right-click a port, pin, wire or block', 'add a note'],
+    ['Magenta </> badge', 'click to open the Issues checklist'],
+  ]],
+  ['Toolbar', [
+    ['Project name (first breadcrumb)', 'switch project, configure sources'],
+    ['Spacing, Live, theme buttons', 'click to cycle'],
+    ['?', 'show or hide this list'],
+  ]],
+];
+function toggleCheats() {
+  if (!cheats.hidden) { cheats.hidden = true; return; }
+  cheats.replaceChildren(
+    h('div', { class: 'cheats-head' }, h('strong', {}, 'Shortcuts'), h('button', { class: 'link small', onclick: () => { cheats.hidden = true; } }, 'Close')),
+    ...CHEATS.map(([title, rows]) => h('section', {},
+      h('h3', {}, title),
+      h('dl', {}, ...rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])))));
+  cheats.hidden = false;
+}
+cheatsBtn.addEventListener('click', e => { e.stopPropagation(); toggleCheats(); });
+window.addEventListener('pointerdown', e => { if (!cheats.hidden && !(e.target as Element).closest('.cheats, .st-cheats, .cheats-btn')) cheats.hidden = true; });
 
 // ---------------------------------------------------------------- minimap
 let miniScale = 1;
@@ -1504,7 +1550,9 @@ function issuesPanel() {
         h('label', { for: id, class: 'issue-title' }, h('span', { class: 'issue-kind' }, ISSUE_KIND[i.kind]), ' ', i.title),
         i.detail ? h('div', { class: 'issue-detail' }, i.detail) : null,
         i.file ? h('button', { class: 'link mono small', onclick: () => vscode.postMessage({ type: 'openFile', file: i.file, line: Math.max(0, (i.line ?? 1) - 1), rel: i.rel }) },
-          `${i.rel ?? i.file}${i.line ? `:${i.line}` : ''}`) : null));
+          `${i.rel ?? i.file}${i.line ? `:${i.line}` : ''}`) : null,
+        i.related ? h('button', { class: 'link mono small issue-related', onclick: () => vscode.postMessage({ type: 'openFile', file: i.related!.file, line: i.related!.line - 1 }) },
+          `${i.related.label} (${i.related.file.split('/').pop()}:${i.related.line})`) : null));
   };
   if (open.length) wrap.append(h('ul', { class: 'issue-list' }, ...open.map(row)));
   else wrap.append(h('p', { class: 'pad clean-title' }, 'All issues checked'));

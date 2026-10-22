@@ -17,7 +17,8 @@ All notable changes to this extension are listed here.
 - Pins tied to 0 show a ground symbol and pins tied to all ones a supply bar; other constants keep their value.
 - The diagram's bottom bar shows **Sources: …** as a button that opens Configure sources; the status-bar list has it too.
 - *Not connected* issues: `.*` ports with no same-named signal, connections to ports that don't exist, extra positional connections and inputs left out are listed and the pins drawn in magenta.
-- Find is no longer a toolbar box: press `/` to open it over the diagram.
+- A shortcuts sheet (`?` in the toolbar, the `?` key, or *Shortcuts* in the bottom bar) lists every key and mouse action.
+- Connections naming a port the module doesn't have are drawn struck through, and connection issues suggest the likely fix (a renamed port, a near-named signal) with a link to the module's ports.
 - Layout: fewer wire crossings, a spacing setting (Compact / Normal / Roomy), and hovering a block fades unrelated wires.
 - Clear setup requirements and an actionable message when Verible is missing.
 

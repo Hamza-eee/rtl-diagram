@@ -497,7 +497,17 @@ ul.plain li { padding: 2px 0; }
 .pin.pin-issue .stub, .pin.pin-issue .pin-arrow { stroke: var(--c-issue); fill: var(--c-issue); }
 .issue-note { display: flex; gap: 6px; align-items: baseline; margin: 6px 0; font-size: 12px; }
 
-/* Find, opened with '/' over the top of the diagram */
-.find-pop { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 30; height: 32px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-.find-pop[hidden] { display: none; }
-.find-pop .find { width: 260px; }
+/* Shortcuts sheet ('?') */
+.tb-key { display: inline-grid; place-items: center; width: 16px; height: 16px; border: 1.3px solid currentColor; border-radius: 50%; font: 700 10.5px var(--ui); }
+.cheats { position: absolute; top: 10px; right: 12px; z-index: 40; width: min(440px, calc(100% - 24px)); max-height: calc(100% - 20px); overflow: auto;
+  padding: 10px 14px 12px; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 32px rgba(0,0,0,.22); }
+.cheats[hidden] { display: none; }
+.cheats-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.cheats h3 { font-size: 11.5px; font-weight: 650; color: var(--muted); margin: 10px 0 4px; }
+.cheats dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 3px 14px; margin: 0; font-size: 12px; }
+.cheats dt { font-family: var(--mono); font-size: 11.5px; }
+.cheats dd { margin: 0; color: var(--muted); }
+/* a connection naming a port the module doesn't have: struck through, dashed stub */
+.pin.phantom .pin-label { text-decoration: line-through; font-style: italic; }
+.pin.phantom .stub { stroke-dasharray: 2 2; }
+.issue-related { display: block; margin-top: 2px; }

@@ -182,7 +182,7 @@ export class DiagramPanel implements vscode.Disposable {
   private issuesState() {
     return this.store.issues.map(i => ({
       key: i.key, kind: i.kind, title: i.title, detail: i.detail, modules: i.modules,
-      file: i.file, line: i.line, col: i.col, rel: i.file ? vscode.workspace.asRelativePath(i.file) : undefined, inst: i.inst,
+      file: i.file, line: i.line, col: i.col, rel: i.file ? vscode.workspace.asRelativePath(i.file) : undefined, inst: i.inst, related: i.related,
       checked: this.store.checkedIssues.has(i.key),
     }));
   }
